@@ -4,9 +4,10 @@ import { corpusEntries } from "./fixtures/inputs";
 
 /**
  * Script de validation du corpus de test : envoie chaque entrée fictive au
- * moteur (Ollama doit être démarré et joignable via OLLAMA_BASE_URL) et
- * vérifie strictement la conformité de la sortie au schéma JSON du bilan.
- * Les échecs sont loggés en détail pour permettre l'ajustement du prompt.
+ * moteur (fournisseur LLM configuré via LLM_PROVIDER — Cerebras par défaut,
+ * nécessite CEREBRAS_API_KEY, ou Ollama en self-hosted) et vérifie
+ * strictement la conformité de la sortie au schéma JSON du bilan. Les
+ * échecs sont loggés en détail pour permettre l'ajustement du prompt.
  *
  * Usage : npm run validate:corpus
  */

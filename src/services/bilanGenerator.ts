@@ -1,7 +1,7 @@
 import { ZodError } from "zod";
 import { BilanSchema, type Bilan } from "../schema/bilan.schema";
 import { buildSystemPrompt, buildUserPrompt } from "../prompts/bilanPrompt";
-import { ollamaChat, type ChatMessage } from "./ollamaClient";
+import { chatComplete, type ChatMessage } from "./llmClient";
 
 export class BilanGenerationError extends Error {
   constructor(message: string, public readonly cause?: unknown) {
@@ -45,7 +45,7 @@ export async function generateBilan(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const raw = await ollamaChat(messages);
+      const raw = await chatComplete(messages);
       const parsed = extractJson(raw);
       const result = BilanSchema.safeParse(parsed);
 

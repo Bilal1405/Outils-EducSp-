@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Générateur de bilan éducatif</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Générateur de bilan éducatif</h1>
+    <p class="subtitle">PCPE — génération assistée par IA d'un bilan trimestriel</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>1. Bénéficiaire</h2>
+      <div class="row">
+        <select id="patient-select"></select>
+        <button type="button" id="patient-refresh" class="btn-secondary" title="Rafraîchir la liste">↻</button>
+      </div>
+      <details>
+        <summary>Ajouter un nouveau bénéficiaire</summary>
+        <div class="row">
+          <input type="text" id="patient-nom" placeholder="Nom" />
+          <input type="text" id="patient-prenom" placeholder="Prénom" />
+          <button type="button" id="patient-create" class="btn-secondary">Ajouter</button>
+        </div>
+      </details>
+    </section>
+
+    <section class="card">
+      <h2>2. Éducateur (auteur du bilan)</h2>
+      <div class="row">
+        <select id="auteur-select"></select>
+        <button type="button" id="auteur-refresh" class="btn-secondary" title="Rafraîchir la liste">↻</button>
+      </div>
+      <details>
+        <summary>Ajouter un nouvel éducateur</summary>
+        <div class="row">
+          <input type="text" id="auteur-nom" placeholder="Nom" />
+          <input type="text" id="auteur-prenom" placeholder="Prénom" />
+          <input type="email" id="auteur-email" placeholder="Email" />
+          <button type="button" id="auteur-create" class="btn-secondary">Ajouter</button>
+        </div>
+      </details>
+    </section>
+
+    <section class="card">
+      <h2>3. Compte-rendu et période</h2>
+      <div class="row">
+        <label>Période
+          <input type="date" id="periode-debut" />
+          <span>→</span>
+          <input type="date" id="periode-fin" />
+        </label>
+      </div>
+      <textarea id="texte" rows="8" placeholder="Compte-rendu libre de l'éducateur pour la période concernée..."></textarea>
+      <button type="button" id="generer" class="btn-primary">Générer le bilan</button>
+      <p id="statut" class="statut"></p>
+    </section>
+
+    <section class="card" id="resultat-section" hidden>
+      <h2>Bilan généré (brouillon)</h2>
+      <div id="resultat"></div>
+      <details>
+        <summary>JSON brut</summary>
+        <pre id="resultat-json"></pre>
+      </details>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
