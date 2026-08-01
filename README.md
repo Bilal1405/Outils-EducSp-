@@ -12,7 +12,7 @@ d'un compte-rendu texte ou audio d'éducateur.
   - **Cerebras** (par défaut) : clé API gratuite sur [cloud.cerebras.ai](https://cloud.cerebras.ai), modèle `gpt-oss-120b`
   - ou [Ollama](https://ollama.com) self-hosted (`LLM_PROVIDER=ollama` dans `.env`)
 - Un serveur de transcription Whisper self-hosted (optionnel, requis
-  uniquement pour les bilans générés à partir d'audio)
+  uniquement pour les bilans générés à partir d'audio) — voir ci-dessous
 
 ## Installation
 
@@ -21,6 +21,19 @@ npm install
 cp .env.example .env   # renseigner DATABASE_URL, OLLAMA_BASE_URL, ...
 npm run migrate        # applique les migrations SQL (db/migrations)
 ```
+
+### Serveur de transcription Whisper (optionnel)
+
+Nécessaire uniquement pour la dictée vocale (bouton micro). Lance
+[speaches](https://speaches.ai) (API OpenAI-compatible) via Docker :
+
+```bash
+docker compose up -d whisper
+```
+
+Le serveur écoute sur `http://localhost:9000` (voir `WHISPER_BASE_URL` dans
+`.env`). Le premier appel de transcription télécharge le modèle Whisper
+(mis en cache dans un volume Docker) et peut donc être lent.
 
 ## Développement
 

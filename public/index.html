@@ -3,72 +3,138 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Générateur de bilan éducatif</title>
+  <title>Bilans éducatifs</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <header>
-    <h1>Générateur de bilan éducatif</h1>
-    <p class="subtitle">PCPE — génération assistée par IA d'un bilan trimestriel</p>
-  </header>
-
-  <main>
-    <section class="card">
-      <h2>1. Bénéficiaire</h2>
-      <div class="row">
-        <select id="patient-select"></select>
-        <button type="button" id="patient-refresh" class="btn-secondary" title="Rafraîchir la liste">↻</button>
+  <div id="app">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <button type="button" id="nouveau-patient-btn" class="btn-nouveau">
+          <span class="btn-nouveau-icon">+</span> Nouveau patient
+        </button>
       </div>
-      <details>
-        <summary>Ajouter un nouveau bénéficiaire</summary>
+
+      <nav class="patient-list" id="patient-list" aria-label="Liste des patients"></nav>
+
+      <div class="sidebar-footer">
+        <label class="educateur-label" for="etablissement-select">Établissement</label>
         <div class="row">
-          <input type="text" id="patient-nom" placeholder="Nom" />
-          <input type="text" id="patient-prenom" placeholder="Prénom" />
-          <button type="button" id="patient-create" class="btn-secondary">Ajouter</button>
+          <select id="etablissement-select"></select>
+          <button type="button" id="etablissement-refresh" class="btn-icon" title="Rafraîchir la liste">↻</button>
         </div>
-      </details>
-    </section>
+        <details>
+          <summary>Ajouter un établissement</summary>
+          <div class="row">
+            <input type="text" id="etablissement-nom" placeholder="Nom" />
+            <input type="number" id="etablissement-quota" placeholder="Quota mensuel de bilans" min="1" />
+            <button type="button" id="etablissement-create" class="btn-secondary">Ajouter</button>
+          </div>
+        </details>
+        <p id="quota-affichage" class="quota-affichage"></p>
 
-    <section class="card">
-      <h2>2. Éducateur (auteur du bilan)</h2>
-      <div class="row">
-        <select id="auteur-select"></select>
-        <button type="button" id="auteur-refresh" class="btn-secondary" title="Rafraîchir la liste">↻</button>
-      </div>
-      <details>
-        <summary>Ajouter un nouvel éducateur</summary>
+        <label class="educateur-label" for="auteur-select">Éducateur connecté</label>
         <div class="row">
-          <input type="text" id="auteur-nom" placeholder="Nom" />
-          <input type="text" id="auteur-prenom" placeholder="Prénom" />
-          <input type="email" id="auteur-email" placeholder="Email" />
-          <button type="button" id="auteur-create" class="btn-secondary">Ajouter</button>
+          <select id="auteur-select"></select>
+          <button type="button" id="auteur-refresh" class="btn-icon" title="Rafraîchir la liste">↻</button>
         </div>
-      </details>
-    </section>
-
-    <section class="card">
-      <h2>3. Compte-rendu et période</h2>
-      <div class="row">
-        <label>Période
-          <input type="date" id="periode-debut" />
-          <span>→</span>
-          <input type="date" id="periode-fin" />
-        </label>
+        <details>
+          <summary>Ajouter un éducateur</summary>
+          <div class="row">
+            <input type="text" id="auteur-nom" placeholder="Nom" />
+            <input type="text" id="auteur-prenom" placeholder="Prénom" />
+            <input type="email" id="auteur-email" placeholder="Email" />
+            <button type="button" id="auteur-create" class="btn-secondary">Ajouter</button>
+          </div>
+        </details>
       </div>
-      <textarea id="texte" rows="8" placeholder="Compte-rendu libre de l'éducateur pour la période concernée..."></textarea>
-      <button type="button" id="generer" class="btn-primary">Générer le bilan</button>
-      <p id="statut" class="statut"></p>
-    </section>
+    </aside>
 
-    <section class="card" id="resultat-section" hidden>
-      <h2>Bilan généré (brouillon)</h2>
-      <div id="resultat"></div>
-      <details>
-        <summary>JSON brut</summary>
-        <pre id="resultat-json"></pre>
-      </details>
-    </section>
-  </main>
+    <main class="main">
+      <div id="empty-state" class="empty-state">
+        <p>Sélectionnez un patient dans la liste, ou créez-en un nouveau.</p>
+      </div>
+
+      <div id="fiche" class="fiche" hidden>
+        <header class="fiche-header">
+          <h1 id="fiche-titre">Nouveau patient</h1>
+        </header>
+
+        <section class="card">
+          <h2>Profil</h2>
+          <form id="patient-form" class="patient-form">
+            <div class="row">
+              <input type="text" id="patient-nom" placeholder="Nom" required />
+              <input type="text" id="patient-prenom" placeholder="Prénom" required />
+              <label class="date-naissance-label">Date de naissance
+                <input type="date" id="patient-date-naissance" />
+              </label>
+            </div>
+            <button type="submit" id="patient-save" class="btn-secondary">Enregistrer le profil</button>
+            <span id="patient-statut" class="statut"></span>
+          </form>
+        </section>
+
+        <section class="card" id="generation-card" hidden>
+          <h2>Nouveau bilan</h2>
+          <div class="row">
+            <label>Période
+              <input type="date" id="periode-debut" />
+              <span>→</span>
+              <input type="date" id="periode-fin" />
+            </label>
+          </div>
+
+          <div class="entree-bilan">
+            <textarea
+              id="saisie"
+              rows="6"
+              placeholder="Compte-rendu libre de l'éducateur pour la période concernée… ou dictez-le au micro."
+            ></textarea>
+            <div class="entree-actions">
+              <button type="button" id="mic-btn" class="btn-mic" title="Dicter au micro">
+                <span id="mic-icon">🎤</span>
+              </button>
+              <span id="mic-statut" class="mic-statut"></span>
+              <button type="button" id="generer-btn" class="btn-primary">Générer le bilan</button>
+            </div>
+          </div>
+          <p id="generation-statut" class="statut"></p>
+        </section>
+
+        <section class="card" id="resultat-section" hidden>
+          <div class="row resultat-header">
+            <h2 id="resultat-titre">Bilan</h2>
+            <span id="resultat-badge" class="badge"></span>
+            <a id="resultat-export" class="btn-secondary btn-export" href="#" download>Exporter en .docx</a>
+            <button type="button" id="resultat-fermer" class="btn-icon" title="Fermer">✕</button>
+          </div>
+          <div id="resultat"></div>
+
+          <div id="resultat-edition" hidden>
+            <h3>Édition (brouillon — modifiable avant validation)</h3>
+            <textarea id="resultat-json-edit" rows="16" class="json-edit"></textarea>
+            <div class="row">
+              <button type="button" id="resultat-enregistrer" class="btn-secondary">Enregistrer les modifications</button>
+              <button type="button" id="resultat-valider" class="btn-primary">Valider ce bilan (archivage définitif)</button>
+            </div>
+            <p id="resultat-edition-statut" class="statut"></p>
+          </div>
+
+          <details id="resultat-json-details">
+            <summary>JSON brut (lecture seule)</summary>
+            <pre id="resultat-json"></pre>
+          </details>
+        </section>
+
+        <section class="card" id="historique-card" hidden>
+          <h2>Historique des bilans</h2>
+          <ul id="historique-list" class="historique-list"></ul>
+          <p id="historique-vide" class="muted" hidden>Aucun bilan généré pour ce patient.</p>
+        </section>
+      </div>
+    </main>
+  </div>
 
   <script src="/app.js"></script>
 </body>

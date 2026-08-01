@@ -3,14 +3,15 @@ import { config } from "../config";
 
 /**
  * Transcrit un fichier audio via un service Whisper self-hosted exposant
- * un endpoint HTTP `/transcribe` (ex: whisper.cpp server, faster-whisper-server).
+ * l'API OpenAI-compatible `/v1/audio/transcriptions` (ex: speaches,
+ * anciennement faster-whisper-server).
  */
 export async function transcribeAudio(audioFilePath: string): Promise<string> {
   const form = new FormData();
   const stream = createReadStream(audioFilePath);
   form.append("file", new Blob([await streamToBuffer(stream)]), "audio");
 
-  const response = await fetch(`${config.whisper.baseUrl}/transcribe`, {
+  const response = await fetch(`${config.whisper.baseUrl}/v1/audio/transcriptions`, {
     method: "POST",
     body: form,
   });

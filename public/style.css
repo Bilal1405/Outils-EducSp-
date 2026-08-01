@@ -1,6 +1,7 @@
 :root {
   color-scheme: light dark;
   --bg: #f7f7f8;
+  --sidebar-bg: #efefef;
   --card-bg: #ffffff;
   --text: #1a1a1a;
   --muted: #666;
@@ -8,11 +9,14 @@
   --primary: #2c5f6f;
   --primary-hover: #1f4750;
   --error: #b3261e;
+  --active-bg: #e2e9ea;
+  --recording: #c0392b;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #16181a;
+    --sidebar-bg: #0f1112;
     --card-bg: #1f2225;
     --text: #eee;
     --muted: #999;
@@ -20,11 +24,21 @@
     --primary: #5aa9bd;
     --primary-hover: #7bc2d4;
     --error: #ff6b60;
+    --active-bg: #26343a;
+    --recording: #ff6b60;
   }
 }
 
 * {
   box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html, body {
+  height: 100%;
 }
 
 body {
@@ -34,35 +48,153 @@ body {
   color: var(--text);
 }
 
-header {
-  padding: 1.5rem 2rem;
+#app {
+  display: flex;
+  height: 100vh;
+}
+
+/* --- Sidebar --- */
+
+.sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-header {
+  padding: 1rem;
   border-bottom: 1px solid var(--border);
 }
 
-header h1 {
-  margin: 0 0 0.25rem;
-  font-size: 1.4rem;
+.btn-nouveau {
+  width: 100%;
+  font: inherit;
+  font-weight: 600;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.subtitle {
-  margin: 0;
+.btn-nouveau:hover {
+  background: var(--active-bg);
+}
+
+.btn-nouveau-icon {
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.patient-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+
+.patient-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  padding: 0.55rem 0.65rem;
+  margin-bottom: 0.15rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.patient-item:hover {
+  background: var(--active-bg);
+}
+
+.patient-item.active {
+  background: var(--active-bg);
+  font-weight: 600;
+}
+
+.patient-item-nom {
+  display: block;
+}
+
+.patient-item-empty {
+  padding: 0.65rem;
   color: var(--muted);
   font-size: 0.9rem;
 }
 
-main {
-  max-width: 800px;
+.sidebar-footer {
+  padding: 0.75rem 1rem 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.educateur-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 0.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.educateur-label:not(:first-child) {
+  margin-top: 1rem;
+}
+
+.quota-affichage {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.quota-affichage.quota-epuise {
+  color: var(--error);
+  font-weight: 600;
+}
+
+/* --- Main --- */
+
+.main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2rem;
+}
+
+.empty-state {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  text-align: center;
+}
+
+.fiche {
+  max-width: 760px;
   margin: 0 auto;
-  padding: 1.5rem 1rem 4rem;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
 }
 
+.fiche-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
 .card {
   background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 1.25rem;
 }
 
@@ -77,6 +209,24 @@ main {
   align-items: center;
   flex-wrap: wrap;
   margin-bottom: 0.5rem;
+}
+
+.resultat-header {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.resultat-header h2 {
+  margin: 0;
+  margin-right: auto;
+}
+
+.date-naissance-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--muted);
 }
 
 select,
@@ -97,7 +247,6 @@ textarea {
 textarea {
   width: 100%;
   resize: vertical;
-  margin: 0.5rem 0;
 }
 
 details {
@@ -139,9 +288,18 @@ button {
   color: var(--text);
 }
 
+.btn-icon {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.4rem 0.6rem;
+  line-height: 1;
+}
+
 .statut {
   min-height: 1.2em;
   font-size: 0.9rem;
+  display: inline-block;
 }
 
 .statut.error {
@@ -151,6 +309,141 @@ button {
 .statut.ok {
   color: var(--primary);
 }
+
+.muted {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* --- Zone de saisie unique (texte + micro) --- */
+
+.entree-bilan {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem;
+  background: var(--bg);
+}
+
+.entree-bilan textarea {
+  border: none;
+  background: transparent;
+  padding: 0.4rem;
+}
+
+.entree-bilan textarea:focus {
+  outline: none;
+}
+
+.entree-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-top: 0.4rem;
+}
+
+.btn-mic {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.btn-mic:hover {
+  background: var(--active-bg);
+}
+
+.btn-mic.recording {
+  background: var(--recording);
+  border-color: var(--recording);
+  color: white;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.btn-mic:disabled {
+  opacity: 0.6;
+  cursor: wait;
+  animation: none;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(192, 57, 43, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(192, 57, 43, 0); }
+}
+
+.mic-statut {
+  font-size: 0.85rem;
+  color: var(--muted);
+  flex: 1;
+}
+
+.entree-actions .btn-primary {
+  margin-left: auto;
+}
+
+/* --- Historique --- */
+
+.historique-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.historique-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.historique-item:hover {
+  background: var(--active-bg);
+}
+
+.historique-item-periode {
+  font-weight: 600;
+}
+
+.historique-item-meta {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-left: 0.5rem;
+}
+
+.badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  margin-left: 0.5rem;
+}
+
+.badge-brouillon {
+  color: var(--muted);
+}
+
+.badge-valide {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+/* --- Résultat bilan --- */
 
 #resultat dl {
   display: grid;
@@ -181,4 +474,35 @@ pre {
   padding: 0.75rem;
   border-radius: 6px;
   font-size: 0.8rem;
+}
+
+.json-edit {
+  width: 100%;
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 0.8rem;
+  resize: vertical;
+}
+
+.btn-export {
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
+#resultat-edition h3 {
+  font-size: 0.95rem;
+  margin: 0.5rem 0 0.25rem;
+}
+
+@media (max-width: 720px) {
+  #app {
+    flex-direction: column;
+    height: auto;
+  }
+  .sidebar {
+    width: 100%;
+    max-height: 40vh;
+  }
+  .main {
+    padding: 1rem;
+  }
 }

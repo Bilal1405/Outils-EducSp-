@@ -2,17 +2,24 @@ import { pool } from "../db";
 import { BilanSchema, type Bilan } from "../schema/bilan.schema";
 
 export type BilanSource = "texte" | "audio";
+export type BilanStatut = "brouillon" | "validé";
+
+export interface BilanPrecedent {
+  id: string;
+  contenu: Bilan;
+}
 
 /**
  * Dernier bilan validé du patient (utilisé comme contexte de continuité
- * inter-bilans pour le prompt du bilan suivant). `null` si aucun bilan
- * validé n'existe encore.
+ * inter-bilans pour le prompt du bilan suivant, BIL-03). Retourne aussi
+ * son id pour traçabilité (G3 : bilan précédent référencé) — `null` si
+ * aucun bilan validé n'existe encore (1ère évaluation, cf §2 cas limites).
  */
 export async function getDernierBilanValide(
   patientId: string
-): Promise<Bilan | null> {
-  const { rows } = await pool.query<{ contenu: unknown }>(
-    `SELECT contenu FROM bilans
+): Promise<BilanPrecedent | null> {
+  const { rows } = await pool.query<{ id: string; contenu: unknown }>(
+    `SELECT id, contenu FROM bilans
      WHERE patient_id = $1 AND statut = 'validé'
      ORDER BY periode_fin DESC
      LIMIT 1`,
@@ -23,34 +30,127 @@ export async function getDernierBilanValide(
     return null;
   }
 
-  return BilanSchema.parse(rows[0].contenu);
+  return { id: rows[0].id, contenu: BilanSchema.parse(rows[0].contenu) };
 }
 
 export interface CreerBilanBrouillonParams {
   patientId: string;
+  etablissementId: string;
   auteurId: string;
   periodeDebut: string;
   periodeFin: string;
   source: BilanSource;
   contenu: Bilan;
+  bilanPrecedentId?: string | null;
 }
 
 export async function creerBilanBrouillon(
   params: CreerBilanBrouillonParams
 ): Promise<{ id: string }> {
   const { rows } = await pool.query<{ id: string }>(
-    `INSERT INTO bilans (patient_id, auteur_id, periode_debut, periode_fin, source, statut, contenu)
-     VALUES ($1, $2, $3, $4, $5, 'brouillon', $6)
+    `INSERT INTO bilans
+       (patient_id, etablissement_id, auteur_id, periode_debut, periode_fin,
+        source, statut, contenu, bilan_precedent_id)
+     VALUES ($1, $2, $3, $4, $5, $6, 'brouillon', $7, $8)
      RETURNING id`,
     [
       params.patientId,
+      params.etablissementId,
       params.auteurId,
       params.periodeDebut,
       params.periodeFin,
       params.source,
       JSON.stringify(params.contenu),
+      params.bilanPrecedentId ?? null,
     ]
   );
 
   return rows[0];
+}
+
+export interface BilanSummary {
+  id: string;
+  date_generation: string;
+  periode_debut: string;
+  periode_fin: string;
+  statut: BilanStatut;
+  source: BilanSource;
+}
+
+/**
+ * Historique des bilans d'un patient, du plus récent au plus ancien
+ * (par période couverte, puis par date de génération).
+ */
+export async function listBilansForPatient(
+  patientId: string
+): Promise<BilanSummary[]> {
+  const { rows } = await pool.query<BilanSummary>(
+    `SELECT id, date_generation, periode_debut, periode_fin, statut, source
+     FROM bilans
+     WHERE patient_id = $1
+     ORDER BY periode_fin DESC, date_generation DESC`,
+    [patientId]
+  );
+  return rows;
+}
+
+export interface BilanDetail extends BilanSummary {
+  patient_id: string;
+  etablissement_id: string;
+  auteur_id: string;
+  bilan_precedent_id: string | null;
+  contenu: Bilan;
+}
+
+export async function getBilanById(id: string): Promise<BilanDetail | null> {
+  const { rows } = await pool.query<Omit<BilanDetail, "contenu"> & { contenu: unknown }>(
+    `SELECT id, patient_id, etablissement_id, auteur_id, date_generation,
+            periode_debut, periode_fin, statut, source, bilan_precedent_id, contenu
+     FROM bilans WHERE id = $1`,
+    [id]
+  );
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const row = rows[0];
+  return { ...row, contenu: BilanSchema.parse(row.contenu) };
+}
+
+export interface UpdateBilanParams {
+  contenu?: Bilan;
+  /** Seule transition autorisée par cette voie : brouillon → validé. */
+  statut?: "validé";
+}
+
+/**
+ * Met à jour un bilan brouillon (édition de contenu et/ou passage en
+ * statut validé). L'appelant doit avoir vérifié au préalable que le bilan
+ * n'est pas déjà validé (archivage définitif, immutable — cf routes/bilans.ts).
+ */
+export async function updateBilan(
+  id: string,
+  params: UpdateBilanParams
+): Promise<BilanDetail | null> {
+  const { rows } = await pool.query<Omit<BilanDetail, "contenu"> & { contenu: unknown }>(
+    `UPDATE bilans SET
+       contenu = COALESCE($2, contenu),
+       statut = COALESCE($3, statut)
+     WHERE id = $1
+     RETURNING id, patient_id, etablissement_id, auteur_id, date_generation,
+               periode_debut, periode_fin, statut, source, bilan_precedent_id, contenu`,
+    [
+      id,
+      params.contenu !== undefined ? JSON.stringify(params.contenu) : null,
+      params.statut ?? null,
+    ]
+  );
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const row = rows[0];
+  return { ...row, contenu: BilanSchema.parse(row.contenu) };
 }

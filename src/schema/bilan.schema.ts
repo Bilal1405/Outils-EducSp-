@@ -4,8 +4,21 @@ import { z } from "zod";
  * Schéma cible du bilan éducatif, tel que défini dans SPEC-moteur-bilan.md.
  * Les enums sont fermées : toute valeur hors liste doit être rejetée
  * (règle de génération n°5 — validation post-génération).
+ *
+ * Fichier source unique du schéma (BRIEF_PROJET §1/§3 G4) : le prompt
+ * (bilanPrompt.ts) et la validation de sortie IA (bilanGenerator.ts)
+ * importent les enums et le schéma d'ici, jamais redéfinis ailleurs.
+ *
+ * Champs obligatoires vs optionnels (BIL-04/G2) : un champ string
+ * obligatoire admet la chaîne vide "" comme valeur légitime d'« absence
+ * d'information déductible du compte-rendu » ; seuls les champs
+ * intrinsèquement absents d'un bilan (ex : date/lieu de naissance non
+ * communiqués) sont modélisés en `.optional().nullable()`. Aucun champ
+ * n'a de valeur par défaut (G2 : jamais de valeur par défaut invisible).
  */
 
+// BIL-02 / §5 : 7 domaines de compétence fixes, validation stricte (rejet
+// si hors liste, jamais de correspondance approximative).
 export const DOMAINES_COMPETENCE = [
   "Autonomie vie quotidienne",
   "Prévention et traitement des comportements problèmes",
