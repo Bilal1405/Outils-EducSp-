@@ -80,6 +80,19 @@ dans un navigateur : la page permet de sélectionner ou créer un bénéficiaire
 et un éducateur, saisir un compte-rendu et une période, puis déclencher la
 génération et visualiser le bilan produit (vue lisible + JSON brut).
 
+## Déploiement (Render)
+
+Le fichier [`render.yaml`](./render.yaml) définit un Blueprint Render :
+un service web Node.js + une base PostgreSQL managée, avec déploiement
+automatique à chaque push sur la branche configurée.
+
+1. Créez un compte sur [render.com](https://render.com) (gratuit) et connectez votre compte GitHub.
+2. **New → Blueprint**, sélectionnez le dépôt `Outils-EducSp-` — Render détecte `render.yaml` automatiquement.
+3. Une fois les services créés, allez dans le service web → **Environment** et renseignez `CEREBRAS_API_KEY` (clé gratuite sur cloud.cerebras.ai) — c'est la seule valeur à saisir manuellement, elle n'est jamais commitée dans le repo.
+4. Chaque `git push` sur la branche configurée redéploie automatiquement.
+
+⚠️ Le service Whisper self-hosted (transcription audio, via `docker-compose.yml`) n'est **pas** provisionné sur Render — il tourne uniquement en local. Le déploiement Render fonctionne pour la génération de bilan à partir de texte (Cerebras est une API cloud, accessible depuis n'importe où), mais pas pour la dictée au micro.
+
 ## Confidentialité
 
 Aucune donnée patient réelle n'est présente dans ce dépôt : les fixtures de

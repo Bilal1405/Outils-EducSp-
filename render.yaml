@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: outils-educsp-moteur-bilan
+    runtime: node
+    plan: free
+    branch: claude/moteur-bilan-spec-nxjqrc
+    buildCommand: npm install && npm run build
+    startCommand: npm run migrate && npm start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: outils-educsp-db
+          property: connectionString
+      - key: LLM_PROVIDER
+        value: cerebras
+      - key: CEREBRAS_BASE_URL
+        value: https://api.cerebras.ai/v1
+      - key: CEREBRAS_MODEL
+        value: gpt-oss-120b
+      # Clé secrète : à renseigner manuellement dans le dashboard Render
+      # (Environment), jamais commitée dans ce fichier.
+      - key: CEREBRAS_API_KEY
+        sync: false
+      # Whisper self-hosted non disponible sur ce déploiement (voir README) :
+      # la génération audio échouera, la génération texte fonctionne normalement.
+      - key: WHISPER_BASE_URL
+        value: http://localhost:9000
+      - key: WHISPER_MODEL
+        value: Systran/faster-whisper-small
+      - key: AUDIO_UPLOADS_DIR
+        value: ./uploads/audio
+
+databases:
+  - name: outils-educsp-db
+    plan: free
+    databaseName: outils_educsp
+    user: outils_educsp
