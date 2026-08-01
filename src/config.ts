@@ -25,6 +25,7 @@ export const config = {
   },
   whisper: {
     baseUrl: process.env.WHISPER_BASE_URL ?? "http://localhost:9000",
+    model: process.env.WHISPER_MODEL ?? "Systran/faster-whisper-small",
   },
   audioUploadsDir: process.env.AUDIO_UPLOADS_DIR ?? "./uploads/audio",
 };

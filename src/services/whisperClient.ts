@@ -10,6 +10,7 @@ export async function transcribeAudio(audioFilePath: string): Promise<string> {
   const form = new FormData();
   const stream = createReadStream(audioFilePath);
   form.append("file", new Blob([await streamToBuffer(stream)]), "audio");
+  form.append("model", config.whisper.model);
 
   const response = await fetch(`${config.whisper.baseUrl}/v1/audio/transcriptions`, {
     method: "POST",
