@@ -2,7 +2,7 @@
   "name": "outils-educsp-moteur-bilan",
   "version": "0.1.0",
   "private": true,
-  "description": "Moteur de génération de bilans éducatifs trimestriels (PCPE) assisté par IA (Ollama self-hosted)",
+  "description": "Moteur de génération de bilans éducatifs trimestriels (PCPE) assisté par IA",
   "type": "commonjs",
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "migrate": "tsx scripts/migrate.ts",
-    "validate:corpus": "tsx test/validate-corpus.ts"
+    "validate:corpus": "tsx test/validate-corpus.ts",
+    "vendor:asr": "node scripts/vendor-asr.mjs",
+    "postinstall": "node scripts/vendor-asr.mjs --tolerant"
   },
   "dependencies": {
     "docx": "^9.7.1",

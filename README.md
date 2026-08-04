@@ -11,29 +11,56 @@ d'un compte-rendu texte ou audio d'éducateur.
 - Un fournisseur LLM :
   - **Cerebras** (par défaut) : clé API gratuite sur [cloud.cerebras.ai](https://cloud.cerebras.ai), modèle `gpt-oss-120b`
   - ou [Ollama](https://ollama.com) self-hosted (`LLM_PROVIDER=ollama` dans `.env`)
-- Un serveur de transcription Whisper self-hosted (optionnel, requis
-  uniquement pour les bilans générés à partir d'audio) — voir ci-dessous
+
+La dictée vocale ne demande aucun prérequis : ni Docker, ni service de
+transcription (voir ci-dessous).
 
 ## Installation
 
 ```bash
 npm install
-cp .env.example .env   # renseigner DATABASE_URL, OLLAMA_BASE_URL, ...
+cp .env.example .env   # renseigner DATABASE_URL et CEREBRAS_API_KEY
 npm run migrate        # applique les migrations SQL (db/migrations)
 ```
 
-### Serveur de transcription Whisper (optionnel)
+`LLM_PROVIDER` n'accepte que `cerebras` ou `ollama`. Toute autre valeur
+interrompt le démarrage avec un message explicite : cette variable décide si
+les comptes-rendus sortent ou non de l'infrastructure, une faute de frappe ne
+doit jamais la trancher à votre place.
 
-Nécessaire uniquement pour la dictée vocale (bouton micro). Lance
-[speaches](https://speaches.ai) (API OpenAI-compatible) via Docker :
+## Transcription vocale
 
-```bash
-docker compose up -d whisper
-```
+La dictée est transcrite **dans le navigateur** par Whisper
+([transformers.js](https://huggingface.co/docs/transformers.js), ONNX
+Runtime). Il n'y a rien à installer, ni conteneur ni démon.
 
-Le serveur écoute sur `http://localhost:9000` (voir `WHISPER_BASE_URL` dans
-`.env`). Le premier appel de transcription télécharge le modèle Whisper
-(mis en cache dans un volume Docker) et peut donc être lent.
+Conséquences :
+
+- l'audio ne quitte jamais le poste de l'éducateur et n'est jamais écrit sur
+  disque — la minimisation RGPD est structurelle, pas une suppression après
+  coup ;
+- la bibliothèque JavaScript est servie par notre propre origine
+  (`public/vendor/`), jamais depuis un CDN tiers ; elle est téléchargée depuis
+  le registre npm et vérifiée par empreinte à chaque `npm install`
+  (`npm run vendor:asr` pour la réinstaller) ;
+- au premier usage, le navigateur télécharge les poids du modèle (~150 Mo,
+  `onnx-community/whisper-base`) depuis Hugging Face, puis les met en cache.
+  Aucune donnée patient n'est transmise lors de ce téléchargement.
+
+Les dictées suivantes sont immédiates. Sur un navigateur qui expose WebGPU
+(Chrome, Edge), la transcription est plusieurs fois plus rapide ; sinon elle
+s'exécute en WebAssembly sur le processeur.
+
+Le modèle se change en une ligne, dans `public/transcription.js` :
+`whisper-tiny` pour plus de rapidité, `whisper-small` pour plus de précision.
+
+### Fonctionnement 100 % hors ligne (optionnel)
+
+Pour supprimer le téléchargement depuis Hugging Face — poste sans accès
+Internet, ou refus de tout appel sortant — il faut servir les poids depuis
+l'application : téléchargez le dépôt du modèle dans `public/vendor/models/`,
+puis passez `env.allowLocalModels = true` et `env.localModelPath =
+"/vendor/models/"` dans `public/transcription.js`.
 
 ## Développement
 
@@ -50,7 +77,8 @@ npm run validate:corpus  # corpus de test contre un Ollama réel (voir ci-dessou
 - `src/prompts/bilanPrompt.ts` — system prompt + template utilisateur du moteur
 - `src/services/bilanGenerator.ts` — `generateBilan(inputText, previousBilan?)` : appelle le LLM, parse et valide la sortie, retry une fois si invalide
 - `src/services/llmClient.ts` — abstraction fournisseur LLM (`LLM_PROVIDER=cerebras|ollama`)
-- `src/services/cerebrasClient.ts` / `ollamaClient.ts` / `whisperClient.ts` — clients HTTP vers les différents services
+- `src/services/cerebrasClient.ts` / `ollamaClient.ts` — clients HTTP vers les fournisseurs LLM
+- `public/transcription.js` — transcription vocale Whisper exécutée dans le navigateur
 - `src/repositories/bilanRepository.ts` — accès DB (dernier bilan validé, insertion en brouillon)
 - `src/repositories/patientRepository.ts` / `utilisateurRepository.ts` — gestion des bénéficiaires/éducateurs
 - `src/routes/bilans.ts` — `POST /api/patients/:id/bilans/generate`
@@ -65,8 +93,11 @@ npm run validate:corpus  # corpus de test contre un Ollama réel (voir ci-dessou
 ```
 POST /api/patients/:id/bilans/generate
 Headers: x-user-id: <auteur_id>   (placeholder en attendant l'authentification)
-Body: { texte?: string, audioFileId?: string, periode_debut: string, periode_fin: string }
+Body: { texte: string, source?: "texte" | "audio", periode_debut: string, periode_fin: string }
 ```
+
+`source` sert uniquement de traçabilité : la dictée étant transcrite côté
+navigateur, le serveur ne reçoit que du texte.
 
 Récupère le dernier bilan validé du patient (contexte de continuité),
 génère le bilan via `generateBilan()`, l'enregistre en base avec le statut
@@ -91,7 +122,9 @@ automatique à chaque push sur la branche configurée.
 3. Une fois les services créés, allez dans le service web → **Environment** et renseignez `CEREBRAS_API_KEY` (clé gratuite sur cloud.cerebras.ai) — c'est la seule valeur à saisir manuellement, elle n'est jamais commitée dans le repo.
 4. Chaque `git push` sur la branche configurée redéploie automatiquement.
 
-⚠️ Le service Whisper self-hosted (transcription audio, via `docker-compose.yml`) n'est **pas** provisionné sur Render — il tourne uniquement en local. Le déploiement Render fonctionne pour la génération de bilan à partir de texte (Cerebras est une API cloud, accessible depuis n'importe où), mais pas pour la dictée au micro.
+La dictée vocale fonctionne aussi sur le déploiement hébergé, puisqu'elle
+s'exécute dans le navigateur de l'utilisateur et ne demande aucun service
+côté serveur.
 
 ## Confidentialité
 

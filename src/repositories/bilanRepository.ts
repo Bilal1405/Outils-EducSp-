@@ -118,6 +118,44 @@ export async function getBilanById(id: string): Promise<BilanDetail | null> {
   return { ...row, contenu: BilanSchema.parse(row.contenu) };
 }
 
+export interface BilanAvecBeneficiaire {
+  contenu: Bilan;
+  periode_debut: string;
+  periode_fin: string;
+  beneficiaire: string;
+}
+
+/**
+ * Bilan et identité du bénéficiaire en une seule requête, pour l'export .docx
+ * dont le nom de fichier combine les deux. Évite l'aller-retour supplémentaire
+ * qu'imposerait la lecture séparée du patient (son id n'est connu qu'après
+ * lecture du bilan, les deux requêtes ne seraient donc pas parallélisables).
+ */
+export async function getBilanAvecBeneficiaire(
+  id: string
+): Promise<BilanAvecBeneficiaire | null> {
+  const { rows } = await pool.query<{
+    contenu: unknown;
+    periode_debut: string;
+    periode_fin: string;
+    beneficiaire: string;
+  }>(
+    `SELECT b.contenu, b.periode_debut, b.periode_fin,
+            p.prenom || ' ' || p.nom AS beneficiaire
+     FROM bilans b
+     JOIN patients p ON p.id = b.patient_id
+     WHERE b.id = $1`,
+    [id]
+  );
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const row = rows[0];
+  return { ...row, contenu: BilanSchema.parse(row.contenu) };
+}
+
 export interface UpdateBilanParams {
   contenu?: Bilan;
   /** Seule transition autorisée par cette voie : brouillon → validé. */

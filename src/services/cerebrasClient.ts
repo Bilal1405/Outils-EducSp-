@@ -7,6 +7,9 @@ import type { ChatMessage } from "./ollamaClient";
  * place d'Ollama pour des temps de réponse nettement plus rapides.
  */
 export async function cerebrasChat(messages: ChatMessage[]): Promise<string> {
+  // Le serveur refuse déjà de démarrer sans clé (validerConfigurationDemarrage) ;
+  // ce garde-fou couvre les scripts qui appellent le client directement, comme
+  // `npm run validate:corpus`.
   if (!config.cerebras.apiKey) {
     throw new Error(
       "CEREBRAS_API_KEY manquante : renseignez-la dans .env (clé gratuite sur cloud.cerebras.ai)"

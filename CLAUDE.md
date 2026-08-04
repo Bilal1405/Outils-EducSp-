@@ -10,7 +10,8 @@ handicap). Interface et code en français.
 - Frontend : **HTML/CSS/JS vanilla** dans `public/` (pas de bundler)
 - Validation : Zod — `src/schema/bilan.schema.ts` est la **source unique** du schéma bilan
 - LLM : adaptateur `src/services/llmClient.ts` (`LLM_PROVIDER=cerebras|ollama`)
-- Transcription : `src/services/whisperClient.ts` (speaches, API OpenAI-compatible)
+- Transcription : `public/transcription.js` — Whisper dans le navigateur
+  (transformers.js), aucun service serveur, aucun audio transmis ni stocké
 - Tests : vitest
 - Déploiement : Render (`render.yaml`), auto-deploy sur push
 
@@ -36,9 +37,14 @@ npm run migrate
 
 ## État d'avancement
 
-Fait : schéma Zod, migrations 001–008, moteur de génération (+retry), adaptateurs
-LLM/Whisper, quotas, export .docx, API patients/utilisateurs/bilans, UI `public/`,
-déploiement Render.
+Fait : schéma Zod, migrations 001–008, moteur de génération (+retry), adaptateur
+LLM, transcription navigateur, quotas, export .docx, API
+patients/utilisateurs/bilans, UI `public/`, `/health`, déploiement Render.
+
+> `SPEC-moteur-bilan.md` décrit un `audioFileId` transcrit par un Whisper
+> self-hosted côté serveur. Remplacé : la transcription se fait dans le
+> navigateur, le corps de requête ne porte plus qu'un `texte` et un marqueur
+> `source`.
 
 Reste : authentification réelle (`x-user-id` est un placeholder non vérifié),
 cloisonnement par établissement + tests, audit_logs, chiffrement

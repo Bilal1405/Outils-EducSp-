@@ -9,6 +9,7 @@ vi.mock("../src/repositories/bilanRepository", () => ({
   getDernierBilanValide: vi.fn(),
   creerBilanBrouillon: vi.fn(),
   getBilanById: vi.fn(),
+  getBilanAvecBeneficiaire: vi.fn(),
   updateBilan: vi.fn(),
   listBilansForPatient: vi.fn(),
 }));
@@ -83,6 +84,11 @@ describe("POST /api/patients/:id/bilans/generate", () => {
     mockedGetPatientById.mockResolvedValue(patientFixture);
     mockedGetDernierBilanValide.mockResolvedValue(null);
     mockedGetQuotaStatus.mockResolvedValue(quotaDisponible);
+    mockedDecrementerQuota.mockResolvedValue({
+      ...quotaDisponible,
+      consomme: 4,
+      restant: 46,
+    });
     mockedCreerBilanBrouillon.mockResolvedValue({ id: "bilan-1" });
     mockedChatComplete.mockResolvedValue(JSON.stringify(validBilanFixture));
   });
@@ -102,7 +108,12 @@ describe("POST /api/patients/:id/bilans/generate", () => {
       validBilanFixture.en_tete.beneficiaire_nom
     );
     expect(mockedCreerBilanBrouillon).toHaveBeenCalledTimes(1);
-    expect(mockedDecrementerQuota).toHaveBeenCalledWith("etab-1");
+    expect(mockedDecrementerQuota).toHaveBeenCalledWith("etab-1", 50);
+
+    // Le quota renvoyé au client vient du décrément lui-même : la table n'est
+    // pas relue après écriture.
+    expect(res.body.quota).toMatchObject({ consomme: 4, restant: 46 });
+    expect(mockedGetQuotaStatus).toHaveBeenCalledTimes(1);
 
     // Ordre imposé §2 : décrément quota après enregistrement, pas avant.
     const creerOrder = mockedCreerBilanBrouillon.mock.invocationCallOrder[0];
@@ -133,6 +144,38 @@ describe("POST /api/patients/:id/bilans/generate", () => {
 
     expect(mockedCreerBilanBrouillon).toHaveBeenCalledWith(
       expect.objectContaining({ bilanPrecedentId: "bilan-precedent-1" })
+    );
+  });
+
+  it("trace l'origine dictée du compte-rendu sans jamais recevoir d'audio", async () => {
+    const res = await request(app)
+      .post("/api/patients/patient-1/bilans/generate")
+      .set("x-user-id", "auteur-1")
+      .send({
+        texte: "Transcription produite dans le navigateur…",
+        source: "audio",
+        periode_debut: "2024-01-01",
+        periode_fin: "2024-03-31",
+      });
+
+    expect(res.status).toBe(201);
+    expect(mockedCreerBilanBrouillon).toHaveBeenCalledWith(
+      expect.objectContaining({ source: "audio" })
+    );
+  });
+
+  it("classe le compte-rendu en source texte par défaut", async () => {
+    await request(app)
+      .post("/api/patients/patient-1/bilans/generate")
+      .set("x-user-id", "auteur-1")
+      .send({
+        texte: "Compte-rendu saisi au clavier",
+        periode_debut: "2024-01-01",
+        periode_fin: "2024-03-31",
+      });
+
+    expect(mockedCreerBilanBrouillon).toHaveBeenCalledWith(
+      expect.objectContaining({ source: "texte" })
     );
   });
 

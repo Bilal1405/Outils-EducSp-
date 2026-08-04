@@ -6,6 +6,7 @@ services:
     branch: claude/moteur-bilan-spec-nxjqrc
     buildCommand: npm install && npm run build
     startCommand: npm run migrate && npm start
+    healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -21,14 +22,8 @@ services:
       # (Environment), jamais commitée dans ce fichier.
       - key: CEREBRAS_API_KEY
         sync: false
-      # Whisper self-hosted non disponible sur ce déploiement (voir README) :
-      # la génération audio échouera, la génération texte fonctionne normalement.
-      - key: WHISPER_BASE_URL
-        value: http://localhost:9000
-      - key: WHISPER_MODEL
-        value: Systran/faster-whisper-small
-      - key: AUDIO_UPLOADS_DIR
-        value: ./uploads/audio
+      # La dictée vocale ne demande aucune variable : elle est transcrite dans
+      # le navigateur de l'éducateur, l'audio n'atteint jamais ce service.
 
 databases:
   - name: outils-educsp-db

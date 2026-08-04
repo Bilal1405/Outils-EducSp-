@@ -10,8 +10,17 @@ export type { ChatMessage };
  * abstraction, jamais directement d'un client de fournisseur particulier.
  */
 export async function chatComplete(messages: ChatMessage[]): Promise<string> {
-  if (config.llmProvider === "ollama") {
-    return ollamaChat(messages);
+  // Aiguillage exhaustif volontaire (pas de `else` fourre-tout) : ajouter un
+  // fournisseur sans l'implémenter ici devient une erreur de compilation, et
+  // non un repli silencieux sur une API tierce.
+  switch (config.llmProvider) {
+    case "ollama":
+      return ollamaChat(messages);
+    case "cerebras":
+      return cerebrasChat(messages);
+    default: {
+      const jamais: never = config.llmProvider;
+      throw new Error(`Fournisseur LLM non géré: ${jamais}`);
+    }
   }
-  return cerebrasChat(messages);
 }

@@ -1,14 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
 import { generateBilan, BilanGenerationError } from "../services/bilanGenerator";
-import { transcribeAudio } from "../services/whisperClient";
-import { resolveAudioFile } from "../services/audioStorage";
 import { getPatientById } from "../repositories/patientRepository";
 import {
   getDernierBilanValide,
   creerBilanBrouillon,
   listBilansForPatient,
   getBilanById,
+  getBilanAvecBeneficiaire,
   updateBilan,
 } from "../repositories/bilanRepository";
 import { getQuotaStatus, decrementerQuota } from "../services/quotaService";
@@ -33,19 +32,14 @@ bilansRouter.get("/api/bilans/:id", async (req, res) => {
 // Export .docx (§7) : un seul module de conversion (bilanDocxExport.ts),
 // strictement fidèle au JSON validé, aucun recalcul.
 bilansRouter.get("/api/bilans/:id/export.docx", async (req, res) => {
-  const bilan = await getBilanById(req.params.id);
+  const bilan = await getBilanAvecBeneficiaire(req.params.id);
   if (!bilan) {
     return res.status(404).json({ error: "Bilan introuvable" });
   }
 
-  const patient = await getPatientById(bilan.patient_id);
-  if (!patient) {
-    return res.status(404).json({ error: "Bénéficiaire introuvable" });
-  }
-
   const buffer = await genererBilanDocx(bilan.contenu);
   const filename = nomFichierBilanDocx(
-    `${patient.prenom} ${patient.nom}`,
+    bilan.beneficiaire,
     bilan.periode_debut,
     bilan.periode_fin
   );
@@ -58,23 +52,24 @@ bilansRouter.get("/api/bilans/:id/export.docx", async (req, res) => {
   return res.send(buffer);
 });
 
-const GenerateBilanBodySchema = z
-  .object({
-    texte: z.string().min(1).optional(),
-    audioFileId: z.string().min(1).optional(),
-    periode_debut: z.string().min(1),
-    periode_fin: z.string().min(1),
-  })
-  .refine((data) => Boolean(data.texte) || Boolean(data.audioFileId), {
-    message: "Fournir soit `texte`, soit `audioFileId`",
-  });
+const GenerateBilanBodySchema = z.object({
+  texte: z.string().min(1),
+  /**
+   * Origine du compte-rendu, à titre de traçabilité uniquement. La dictée est
+   * transcrite dans le navigateur (public/transcription.js) : le serveur ne
+   * reçoit jamais d'audio et n'en écrit jamais sur disque.
+   */
+  source: z.enum(["texte", "audio"]).default("texte"),
+  periode_debut: z.string().min(1),
+  periode_fin: z.string().min(1),
+});
 
 /**
- * Ordre imposé (BRIEF_PROJET §2) : transcription → contexte N-1 →
- * génération → validation schéma → décrément quota. Le quota est vérifié
- * en amont de l'appel au moteur IA (alerte bloquante immédiate, on
- * n'engage pas un appel LLM voué à être gaspillé) mais n'est décrémenté
- * qu'après enregistrement réussi du bilan, conformément à l'ordre.
+ * Ordre imposé (BRIEF_PROJET §2) : contexte N-1 → génération → validation
+ * schéma → décrément quota (la transcription a lieu en amont, côté client).
+ * Le quota est vérifié avant l'appel au moteur IA (alerte bloquante
+ * immédiate, on n'engage pas un appel LLM voué à être gaspillé) mais n'est
+ * décrémenté qu'après enregistrement réussi du bilan.
  */
 bilansRouter.post("/api/patients/:id/bilans/generate", async (req, res) => {
   const patientId = req.params.id;
@@ -98,25 +93,16 @@ bilansRouter.post("/api/patients/:id/bilans/generate", async (req, res) => {
     return res.status(404).json({ error: "Bénéficiaire introuvable" });
   }
 
-  const { texte, audioFileId, periode_debut, periode_fin } = parsed.data;
+  const { texte, source, periode_debut, periode_fin } = parsed.data;
+
+  // Cas limite §2 : compte-rendu vide ou insuffisant → alerte bloquante,
+  // aucune génération (BIL-04, G1, G2).
+  const inputText = texte.trim();
+  if (inputText.length === 0) {
+    return res.status(400).json({ error: "Compte-rendu vide" });
+  }
 
   try {
-    let inputText = texte;
-    const source: "texte" | "audio" = audioFileId ? "audio" : "texte";
-
-    if (audioFileId) {
-      const audioPath = resolveAudioFile(audioFileId);
-      inputText = await transcribeAudio(audioPath);
-    }
-
-    // Cas limite §2 : compte-rendu vide ou insuffisant → alerte bloquante,
-    // aucune génération (BIL-04, G1, G2).
-    if (!inputText || inputText.trim().length === 0) {
-      return res.status(400).json({
-        error: "Aucun contenu exploitable (texte vide ou transcription vide)",
-      });
-    }
-
     // QUOTA-01 : blocage explicite si le quota mensuel de l'établissement
     // est épuisé — jamais de dégradation silencieuse (§4).
     const quotaAvant = await getQuotaStatus(patient.etablissement_id);
@@ -144,8 +130,11 @@ bilansRouter.post("/api/patients/:id/bilans/generate", async (req, res) => {
       bilanPrecedentId: previous?.id ?? null,
     });
 
-    await decrementerQuota(patient.etablissement_id);
-    const quotaApres = await getQuotaStatus(patient.etablissement_id);
+    // Le décrément renvoie directement le nouvel état : pas de relecture.
+    const quotaApres = await decrementerQuota(
+      patient.etablissement_id,
+      quotaAvant.quota_mensuel
+    );
 
     return res.status(201).json({
       id: saved.id,

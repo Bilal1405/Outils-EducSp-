@@ -611,11 +611,13 @@ els.genererBtn.addEventListener("click", async () => {
       },
       body: JSON.stringify({
         texte,
+        source: saisieDictee ? "audio" : "texte",
         periode_debut: periodeDebut,
         periode_fin: periodeFin,
       }),
     });
     setStatut(els.generationStatut, `Bilan généré (statut: ${result.statut})`, "ok");
+    saisieDictee = false;
     afficherBilan({
       id: result.id,
       statut: result.statut,
@@ -635,11 +637,13 @@ els.genererBtn.addEventListener("click", async () => {
   }
 });
 
-// --- Dictée vocale (MediaRecorder + Whisper) ---
+// --- Dictée vocale (MediaRecorder + Whisper dans le navigateur) ---
 
 let mediaRecorder = null;
 let audioChunks = [];
 let mediaStream = null;
+/** Trace l'origine du compte-rendu pour renseigner `source` côté bilan. */
+let saisieDictee = false;
 
 function stopRecordingIfActive() {
   if (mediaRecorder && mediaRecorder.state !== "inactive") {
@@ -706,21 +710,18 @@ els.micBtn.addEventListener("click", async () => {
 
 async function transcrireEtInjecter(blob) {
   els.micBtn.disabled = true;
-  els.micStatut.textContent = "Envoi de l'enregistrement…";
+  els.micStatut.textContent = "Préparation…";
   try {
-    const upload = await fetchJson("/api/audio", {
-      method: "POST",
-      headers: { "Content-Type": blob.type || "audio/webm" },
-      body: blob,
-    });
-
-    els.micStatut.textContent = "Transcription en cours…";
-    const { texte } = await fetchJson(`/api/audio/${upload.audioFileId}/transcribe`, {
-      method: "POST",
+    // La transcription tourne intégralement dans le navigateur : l'audio ne
+    // part sur aucun serveur et n'est jamais écrit sur disque.
+    const { transcrire } = await import("/transcription.js");
+    const texte = await transcrire(blob, (etape) => {
+      els.micStatut.textContent = etape;
     });
 
     const separateur = els.saisie.value.trim().length > 0 ? "\n\n" : "";
     els.saisie.value = els.saisie.value + separateur + texte;
+    saisieDictee = true;
     els.micStatut.textContent = "Transcription ajoutée — relisez avant de générer.";
   } catch (err) {
     setStatut(els.generationStatut, `Échec de la transcription : ${err.message}`, "error");
