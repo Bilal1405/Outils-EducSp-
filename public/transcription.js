@@ -9,12 +9,19 @@
  *    n'est jamais écrit sur disque (minimisation RGPD structurelle, et non
  *    plus « supprimé après coup ») ;
  *  - la bibliothèque JavaScript est servie par notre propre origine
- *    (public/vendor/), jamais depuis un CDN tiers.
+ *    (public/vendor/), et non depuis un CDN.
  *
- * Seuls les poids du modèle sont téléchargés depuis Hugging Face au premier
- * usage, puis mis en cache par le navigateur. Aucune donnée patient n'est
- * transmise lors de ce téléchargement. Pour un fonctionnement 100 % hors
- * ligne, voir la section « Transcription vocale » du README.
+ * Deux ressources restent téléchargées au premier usage, puis mises en cache
+ * par le navigateur : le moteur d'inférence WebAssembly (jsDelivr, à une
+ * version figée) et les poids du modèle (Hugging Face). Aucune donnée patient
+ * n'est transmise lors de ces téléchargements, mais ils supposent un accès
+ * réseau et font intervenir deux tiers. Pour les supprimer entièrement, voir
+ * la section « Transcription vocale » du README.
+ *
+ * Attention au choix du fichier de bibliothèque : `transformers.web.min.js`
+ * attend un empaqueteur et échoue dans le navigateur avec « Failed to resolve
+ * module specifier "onnxruntime-web/webgpu" ». C'est `transformers.min.js`,
+ * autonome, qui doit être servi ici.
  */
 
 // Modèle Whisper multilingue au format ONNX. `base` est le compromis retenu :

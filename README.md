@@ -53,12 +53,14 @@ Conséquences :
   disque — la minimisation RGPD est structurelle, pas une suppression après
   coup ;
 - la bibliothèque JavaScript est servie par notre propre origine
-  (`public/vendor/`), jamais depuis un CDN tiers ; elle est téléchargée depuis
-  le registre npm et vérifiée par empreinte à chaque `npm install`
+  (`public/vendor/`), et non depuis un CDN ; elle est téléchargée depuis le
+  registre npm et vérifiée par empreinte à chaque `npm install`
   (`npm run vendor:asr` pour la réinstaller) ;
-- au premier usage, le navigateur télécharge les poids du modèle (~150 Mo,
-  `onnx-community/whisper-base`) depuis Hugging Face, puis les met en cache.
-  Aucune donnée patient n'est transmise lors de ce téléchargement.
+- au premier usage, le navigateur télécharge le moteur d'inférence
+  WebAssembly (jsDelivr, version figée) puis les poids du modèle (~150 Mo,
+  `onnx-community/whisper-base`, depuis Hugging Face), et les met en cache.
+  Aucune donnée patient n'est transmise lors de ces téléchargements, mais ils
+  supposent un accès réseau.
 
 Les dictées suivantes sont immédiates. Sur un navigateur qui expose WebGPU
 (Chrome, Edge), la transcription est plusieurs fois plus rapide ; sinon elle
@@ -69,11 +71,19 @@ Le modèle se change en une ligne, dans `public/transcription.js` :
 
 ### Fonctionnement 100 % hors ligne (optionnel)
 
-Pour supprimer le téléchargement depuis Hugging Face — poste sans accès
-Internet, ou refus de tout appel sortant — il faut servir les poids depuis
-l'application : téléchargez le dépôt du modèle dans `public/vendor/models/`,
-puis passez `env.allowLocalModels = true` et `env.localModelPath =
-"/vendor/models/"` dans `public/transcription.js`.
+Pour supprimer tout appel sortant — poste sans accès Internet, ou refus de
+dépendre de tiers — deux ressources sont à héberger localement dans
+`public/transcription.js` :
+
+- **le moteur WebAssembly** : copier `ort-wasm-simd-threaded*.{wasm,mjs}` du
+  paquet `onnxruntime-web` dans `public/vendor/ort/`, puis fixer
+  `env.backends.onnx.wasm.wasmPaths = "/vendor/ort/"` ;
+- **les poids du modèle** : télécharger le dépôt du modèle dans
+  `public/vendor/models/`, puis passer `env.allowLocalModels = true` et
+  `env.localModelPath = "/vendor/models/"`.
+
+Comptez une soixantaine de mégaoctets pour le moteur, selon les variantes
+retenues (WebGPU et WebAssembly n'utilisent pas les mêmes fichiers).
 
 ## Développement
 

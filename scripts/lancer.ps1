@@ -1,4 +1,4 @@
-<#
+﻿<#
     Démarrage complet de l'application en un clic.
 
     Enchaîne : vérification de Node → création du fichier .env si absent
@@ -60,7 +60,7 @@ else {
     Write-Host ""
 
     Write-Host "1/2 - Mot de passe de l'utilisateur PostgreSQL 'postgres'." -ForegroundColor White
-    Write-Host "      La saisie reste invisible, c'est normal : tapez puis Entrée." -ForegroundColor DarkGray
+    Write-Host "      La saisie s'affiche en astérisques : tapez puis Entrée." -ForegroundColor DarkGray
     $motDePasseSecurise = Read-Host "      Mot de passe" -AsSecureString
     $motDePasse = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
         [Runtime.InteropServices.Marshal]::SecureStringToBSTR($motDePasseSecurise))

@@ -10,10 +10,14 @@ tiers.
 
 ## transformers.min.js
 
-- Origine : `@huggingface/transformers`, fichier `dist/transformers.web.min.js`
+- Origine : `@huggingface/transformers`, fichier `dist/transformers.min.js`
 - Version : **4.2.0**
 - Licence : Apache-2.0
 - Utilisé par : `public/transcription.js` (transcription vocale Whisper)
+
+⚠️ Prendre `dist/transformers.min.js` et **pas** `dist/transformers.web.min.js` :
+ce dernier laisse des imports non résolus (`onnxruntime-web/webgpu`) destinés à
+un empaqueteur, et le navigateur refuse de le charger.
 
 Ce fichier n'est **pas commité** : minifié, il contient des identifiants longs
 (`BlenderbotForConditionalGeneration` et consorts) que l'analyse de secrets de

@@ -25,9 +25,9 @@ import { gunzipSync } from "node:zlib";
 import path from "node:path";
 
 const VERSION = "4.2.0";
-const SHA256 = "0a96dcf4c48981b7d05f53827e6975ec239132606ad0d526bbc2db0fcdbc4ded";
+const SHA256 = "e74bd32ed4453369ebb0edcaa27f6bc6204004a949a0233cdb87b62dda8d6978";
 const ARCHIVE = `https://registry.npmjs.org/@huggingface/transformers/-/transformers-${VERSION}.tgz`;
-const FICHIER_DANS_ARCHIVE = "package/dist/transformers.web.min.js";
+const FICHIER_DANS_ARCHIVE = "package/dist/transformers.min.js";
 const DESTINATION = path.join("public", "vendor", "transformers.min.js");
 
 function empreinte(donnees) {
