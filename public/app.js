@@ -40,6 +40,9 @@ const els = {
   etablissementCreate: document.getElementById("etablissement-create"),
   etablissementNom: document.getElementById("etablissement-nom"),
   etablissementQuota: document.getElementById("etablissement-quota"),
+  etablissementStatut: document.getElementById("etablissement-statut"),
+  auteurStatut: document.getElementById("auteur-statut"),
+  appAlerte: document.getElementById("app-alerte"),
   quotaAffichage: document.getElementById("quota-affichage"),
   auteurSelect: document.getElementById("auteur-select"),
   auteurRefresh: document.getElementById("auteur-refresh"),
@@ -139,21 +142,42 @@ els.etablissementSelect.addEventListener("change", () => {
 });
 
 els.etablissementRefresh.addEventListener("click", () => {
-  loadEtablissements().catch((err) => setStatut(els.patientStatut, err.message, "error"));
+  loadEtablissements().catch((err) =>
+    setStatut(els.etablissementStatut, err.message, "error")
+  );
 });
 
+/**
+ * Les messages de ce formulaire visent `#etablissement-statut`, dans la barre
+ * latérale. Ils pointaient auparavant vers le statut de la fiche patient, qui
+ * est masquée tant qu'aucun patient n'est sélectionné : un échec de création
+ * ne s'affichait donc nulle part et le bouton semblait sans effet.
+ */
 els.etablissementCreate.addEventListener("click", async () => {
   const nom = els.etablissementNom.value.trim();
   const quotaValue = els.etablissementQuota.value.trim();
   if (!nom) {
-    setStatut(els.patientStatut, "Nom de l'établissement requis", "error");
+    setStatut(els.etablissementStatut, "Nom de l'établissement requis", "error");
     return;
   }
-  try {
-    const body = { nom };
-    if (quotaValue) {
-      body.quota_mensuel_bilans = Number(quotaValue);
+
+  const body = { nom };
+  if (quotaValue) {
+    const quota = Number(quotaValue);
+    if (!Number.isInteger(quota) || quota < 1) {
+      setStatut(
+        els.etablissementStatut,
+        "Le quota doit être un nombre entier supérieur à 0",
+        "error"
+      );
+      return;
     }
+    body.quota_mensuel_bilans = quota;
+  }
+
+  els.etablissementCreate.disabled = true;
+  setStatut(els.etablissementStatut, "Création en cours…", "");
+  try {
     const created = await fetchJson("/api/etablissements", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -162,8 +186,11 @@ els.etablissementCreate.addEventListener("click", async () => {
     await loadEtablissements(created.id);
     els.etablissementNom.value = "";
     els.etablissementQuota.value = "";
+    setStatut(els.etablissementStatut, `« ${nom} » ajouté et sélectionné.`, "ok");
   } catch (err) {
-    setStatut(els.patientStatut, err.message, "error");
+    setStatut(els.etablissementStatut, err.message, "error");
+  } finally {
+    els.etablissementCreate.disabled = false;
   }
 });
 
@@ -204,17 +231,22 @@ els.auteurSelect.addEventListener("change", () => {
 });
 
 els.auteurRefresh.addEventListener("click", () => {
-  loadUtilisateurs().catch((err) => setStatut(els.generationStatut, err.message, "error"));
+  loadUtilisateurs().catch((err) => setStatut(els.auteurStatut, err.message, "error"));
 });
 
+// Même correction que pour l'établissement : le retour s'affiche dans la barre
+// latérale, à côté du formulaire, et non dans la fiche patient masquée.
 els.auteurCreate.addEventListener("click", async () => {
   const nom = els.auteurNom.value.trim();
   const prenom = els.auteurPrenom.value.trim();
   const email = els.auteurEmail.value.trim();
   if (!nom || !prenom || !email) {
-    setStatut(els.generationStatut, "Nom, prénom et email de l'éducateur requis", "error");
+    setStatut(els.auteurStatut, "Nom, prénom et email de l'éducateur requis", "error");
     return;
   }
+
+  els.auteurCreate.disabled = true;
+  setStatut(els.auteurStatut, "Création en cours…", "");
   try {
     const created = await fetchJson("/api/utilisateurs", {
       method: "POST",
@@ -225,8 +257,11 @@ els.auteurCreate.addEventListener("click", async () => {
     els.auteurNom.value = "";
     els.auteurPrenom.value = "";
     els.auteurEmail.value = "";
+    setStatut(els.auteurStatut, `${prenom} ${nom} ajouté et sélectionné.`, "ok");
   } catch (err) {
-    setStatut(els.generationStatut, err.message, "error");
+    setStatut(els.auteurStatut, err.message, "error");
+  } finally {
+    els.auteurCreate.disabled = false;
   }
 });
 
@@ -733,6 +768,21 @@ async function transcrireEtInjecter(blob) {
 
 // --- Initialisation ---
 
-loadEtablissements().catch((err) => setStatut(els.patientStatut, err.message, "error"));
-loadPatients().catch((err) => setStatut(els.patientStatut, err.message, "error"));
-loadUtilisateurs().catch((err) => setStatut(els.generationStatut, err.message, "error"));
+/**
+ * Panne au chargement (serveur arrêté, base injoignable) : l'affichage doit
+ * être impossible à manquer. Les statuts de la fiche patient ne conviennent
+ * pas ici, ils sont masqués tant qu'aucun patient n'est sélectionné — c'est
+ * ce qui produisait une page vide et silencieuse.
+ */
+function signalerPanne(err) {
+  els.appAlerte.textContent =
+    `Impossible de contacter le serveur : ${err.message}. ` +
+    `Vérifiez qu'il est démarré et que la base de données répond.`;
+  els.appAlerte.hidden = false;
+}
+
+Promise.all([
+  loadEtablissements(),
+  loadPatients(),
+  loadUtilisateurs(),
+]).catch(signalerPanne);

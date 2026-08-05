@@ -1,32 +1,24 @@
+/**
+ * Palette claire et chaude. Le thème sombre a été retiré volontairement :
+ * l'outil s'utilise en journée, en entretien ou en réunion, et une seule
+ * apparence évite qu'un même écran change de couleurs d'un poste à l'autre.
+ */
 :root {
-  color-scheme: light dark;
-  --bg: #f7f7f8;
-  --sidebar-bg: #efefef;
-  --card-bg: #ffffff;
-  --text: #1a1a1a;
-  --muted: #666;
-  --border: #ddd;
-  --primary: #2c5f6f;
-  --primary-hover: #1f4750;
-  --error: #b3261e;
-  --active-bg: #e2e9ea;
-  --recording: #c0392b;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #16181a;
-    --sidebar-bg: #0f1112;
-    --card-bg: #1f2225;
-    --text: #eee;
-    --muted: #999;
-    --border: #333;
-    --primary: #5aa9bd;
-    --primary-hover: #7bc2d4;
-    --error: #ff6b60;
-    --active-bg: #26343a;
-    --recording: #ff6b60;
-  }
+  color-scheme: light;
+  --bg: #fdf7f0;
+  --sidebar-bg: #f7ece0;
+  --card-bg: #fffdfa;
+  --text: #3d3128;
+  --muted: #8a7767;
+  --border: #ecdcca;
+  --primary: #c26b3c;
+  --primary-hover: #a5552b;
+  --primary-soft: #fbeade;
+  --succes: #6f8f4f;
+  --error: #bf4632;
+  --active-bg: #f4e2ce;
+  --recording: #bf4632;
+  --ombre: 0 1px 2px rgba(90, 62, 40, 0.05), 0 4px 12px rgba(90, 62, 40, 0.05);
 }
 
 * {
@@ -46,11 +38,16 @@ body {
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   background: var(--bg);
   color: var(--text);
+  /* Colonne pour que le bandeau d'alerte pousse l'application sans la
+     faire déborder de la fenêtre. */
+  display: flex;
+  flex-direction: column;
 }
 
 #app {
   display: flex;
-  height: 100vh;
+  flex: 1;
+  min-height: 0;
 }
 
 /* --- Sidebar --- */
@@ -73,11 +70,11 @@ body {
   width: 100%;
   font: inherit;
   font-weight: 600;
-  padding: 0.65rem 0.75rem;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--card-bg);
-  color: var(--text);
+  padding: 0.7rem 0.8rem;
+  border-radius: 10px;
+  border: 1px solid var(--primary);
+  background: var(--primary);
+  color: #fffdfa;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -85,12 +82,14 @@ body {
 }
 
 .btn-nouveau:hover {
-  background: var(--active-bg);
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 .btn-nouveau-icon {
   font-weight: 700;
-  color: var(--primary);
+  font-size: 1.1rem;
+  line-height: 1;
 }
 
 .patient-list {
@@ -118,8 +117,10 @@ body {
 }
 
 .patient-item.active {
-  background: var(--active-bg);
+  background: var(--primary-soft);
+  color: var(--primary-hover);
   font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--primary);
 }
 
 .patient-item-nom {
@@ -148,6 +149,18 @@ body {
 
 .educateur-label:not(:first-child) {
   margin-top: 1rem;
+}
+
+/* Dans la barre latérale (280 px), trois champs côte à côte deviennent
+   illisibles : on les empile. */
+.sidebar-footer details .row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+}
+
+.sidebar-footer details .row button {
+  align-self: flex-start;
 }
 
 .quota-affichage {
@@ -194,8 +207,9 @@ body {
 .card {
   background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 1.25rem;
+  border-radius: 14px;
+  padding: 1.35rem 1.5rem;
+  box-shadow: var(--ombre);
 }
 
 .card h2 {
@@ -232,16 +246,26 @@ body {
 select,
 input[type="text"],
 input[type="email"],
+input[type="number"],
 input[type="date"],
 textarea {
   font: inherit;
-  padding: 0.5rem;
+  padding: 0.55rem 0.65rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
+  border-radius: 8px;
+  background: var(--card-bg);
   color: var(--text);
   flex: 1;
   min-width: 0;
+}
+
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
 }
 
 textarea {
@@ -255,21 +279,27 @@ details {
 
 details summary {
   cursor: pointer;
-  color: var(--muted);
+  color: var(--primary);
   font-size: 0.9rem;
+  padding: 0.2rem 0;
+}
+
+details summary:hover {
+  color: var(--primary-hover);
 }
 
 button {
   font: inherit;
   padding: 0.5rem 1rem;
-  border-radius: 6px;
+  border-radius: 8px;
   border: none;
   cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .btn-primary {
   background: var(--primary);
-  color: white;
+  color: #fffdfa;
   font-weight: 600;
 }
 
@@ -278,36 +308,68 @@ button {
 }
 
 .btn-primary:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: wait;
 }
 
 .btn-secondary {
-  background: transparent;
+  background: var(--card-bg);
   border: 1px solid var(--border);
   color: var(--text);
 }
 
+.btn-secondary:hover {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 .btn-icon {
-  background: transparent;
+  background: var(--card-bg);
   border: 1px solid var(--border);
-  color: var(--text);
-  padding: 0.4rem 0.6rem;
+  color: var(--muted);
+  padding: 0.45rem 0.6rem;
   line-height: 1;
+}
+
+.btn-icon:hover {
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 .statut {
   min-height: 1.2em;
   font-size: 0.9rem;
   display: inline-block;
+  margin: 0.35rem 0 0;
+  color: var(--muted);
 }
 
 .statut.error {
   color: var(--error);
+  font-weight: 500;
 }
 
 .statut.ok {
-  color: var(--primary);
+  color: var(--succes);
+  font-weight: 500;
+}
+
+/* Panne au chargement : bandeau impossible à manquer, en haut de page. */
+.app-alerte {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 0.75rem 1rem;
+  background: #fbe3de;
+  color: #7d2a1c;
+  border-bottom: 1px solid #eeb9ae;
+  font-size: 0.9rem;
+  text-align: center;
 }
 
 .muted {
@@ -319,9 +381,13 @@ button {
 
 .entree-bilan {
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 0.6rem;
   background: var(--bg);
+}
+
+.entree-bilan:focus-within {
+  border-color: var(--primary);
 }
 
 .entree-bilan textarea {
@@ -373,8 +439,8 @@ button {
 }
 
 @keyframes pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(192, 57, 43, 0.4); }
-  50% { box-shadow: 0 0 0 8px rgba(192, 57, 43, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(191, 70, 50, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(191, 70, 50, 0); }
 }
 
 .mic-statut {
@@ -436,11 +502,13 @@ button {
 
 .badge-brouillon {
   color: var(--muted);
+  background: var(--sidebar-bg);
 }
 
 .badge-valide {
-  color: var(--primary);
-  border-color: var(--primary);
+  color: var(--succes);
+  border-color: var(--succes);
+  background: #f1f5ea;
 }
 
 /* --- Résultat bilan --- */

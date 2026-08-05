@@ -4,9 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bilans éducatifs</title>
+  <!-- Icône embarquée (data URI) : aucune requête réseau, aucune dépendance
+       à un service d'icônes externe. -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23c26b3c'/%3E%3Cpath d='M9 8h11l4 4v12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z' fill='%23fffdfa'/%3E%3Cpath d='M11 16h10M11 20h7' stroke='%23c26b3c' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
+  <div id="app-alerte" class="app-alerte" role="alert" hidden></div>
   <div id="app">
     <aside class="sidebar">
       <div class="sidebar-header">
@@ -30,6 +34,7 @@
             <input type="number" id="etablissement-quota" placeholder="Quota mensuel de bilans" min="1" />
             <button type="button" id="etablissement-create" class="btn-secondary">Ajouter</button>
           </div>
+          <p id="etablissement-statut" class="statut" role="status" aria-live="polite"></p>
         </details>
         <p id="quota-affichage" class="quota-affichage"></p>
 
@@ -46,6 +51,7 @@
             <input type="email" id="auteur-email" placeholder="Email" />
             <button type="button" id="auteur-create" class="btn-secondary">Ajouter</button>
           </div>
+          <p id="auteur-statut" class="statut" role="status" aria-live="polite"></p>
         </details>
       </div>
     </aside>

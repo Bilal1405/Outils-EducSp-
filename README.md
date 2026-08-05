@@ -15,12 +15,25 @@ d'un compte-rendu texte ou audio d'éducateur.
 La dictée vocale ne demande aucun prérequis : ni Docker, ni service de
 transcription (voir ci-dessous).
 
-## Installation
+## Démarrage en un clic (Windows)
+
+Double-cliquez sur **`Lancer-l-application.cmd`**.
+
+Au premier lancement, le script demande le mot de passe PostgreSQL et la clé
+API Cerebras, écrit le fichier `.env`, installe les dépendances, applique les
+migrations, démarre le serveur et ouvre le navigateur. Les fois suivantes, il
+ne redemande rien.
+
+Gardez la fenêtre ouverte pendant l'utilisation : la fermer arrête
+l'application.
+
+## Installation manuelle
 
 ```bash
 npm install
 cp .env.example .env   # renseigner DATABASE_URL et CEREBRAS_API_KEY
 npm run migrate        # applique les migrations SQL (db/migrations)
+npm run dev
 ```
 
 `LLM_PROVIDER` n'accepte que `cerebras` ou `ollama`. Toute autre valeur
