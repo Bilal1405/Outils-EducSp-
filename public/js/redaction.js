@@ -21,6 +21,9 @@ const brouillons = new Map();
 
 let dictee = false;
 let chronoAttente = null;
+let preparationLancee = false;
+/** Un téléchargement de modèle occupe-t-il la ligne d'état ? */
+let preparationAffichee = false;
 
 // --- Période ---
 
@@ -133,7 +136,11 @@ export function restaurerBrouillon() {
   marquerRaccourciActif();
   majCompteur();
   statut($("redaction-statut"), "");
-  $("micro-statut").textContent = "";
+  // Un téléchargement de modèle en cours garde la main sur la ligne d'état :
+  // changer de bénéficiaire ne doit pas faire disparaître l'avancement.
+  if (!preparationAffichee) {
+    $("micro-statut").textContent = "";
+  }
   $("generation-encours").hidden = true;
 }
 
@@ -289,6 +296,72 @@ function majProgression(pourcentage) {
   $("micro-progression-barre").style.width = `${Math.max(0, Math.min(100, pourcentage))}%`;
 }
 
+/**
+ * Prépare le modèle de dictée en avance de phase.
+ *
+ * Une première dictée coûte deux choses : le téléchargement des poids — une
+ * fois par poste, ensuite servi par le cache du navigateur — et l'instanciation
+ * du graphe, quelques secondes à chaque onglet. Rien n'oblige à payer cela
+ * après le clic sur « Arrêter », au moment précis où l'éducateur attend son
+ * texte. On s'y prend donc plus tôt, à trois occasions : survol du bouton,
+ * démarrage de l'enregistrement (pendant que la personne parle), et ouverture
+ * de l'écran de rédaction quand le modèle est déjà en cache.
+ *
+ * Un téléchargement réel est toujours annoncé : engager plusieurs dizaines de
+ * mégaoctets en silence n'est pas acceptable.
+ */
+async function preparerDictee() {
+  if (preparationLancee) return;
+  preparationLancee = true;
+
+  try {
+    const module = await import("/transcription.js");
+    if (module.modelePret()) return;
+
+    await module.prechargerModele((etape, pourcentage) => {
+      preparationAffichee = true;
+      $("micro-statut").textContent = etape;
+      majProgression(pourcentage);
+    });
+    majProgression(null);
+    if (preparationAffichee) {
+      preparationAffichee = false;
+      $("micro-statut").textContent = module.modelePret() ? "Dictée prête." : "";
+    }
+  } catch {
+    // Nouvelle tentative permise au prochain déclencheur.
+    preparationLancee = false;
+  }
+}
+
+/**
+ * Préparation automatique à l'ouverture de l'écran de rédaction, uniquement si
+ * le modèle a déjà été chargé sur ce poste : il est alors dans le cache, la
+ * remise en mémoire ne consomme aucun réseau. Sinon on attend un geste
+ * explicite — personne ne doit déclencher un gros téléchargement sans le
+ * vouloir.
+ */
+export function planifierPreparationDictee() {
+  if (preparationLancee) return;
+  if (navigator.connection && navigator.connection.saveData) return;
+
+  const lancer = () => {
+    import("/transcription.js")
+      .then((module) => {
+        if (module.modeleDejaCharge()) {
+          preparerDictee();
+        }
+      })
+      .catch(() => {});
+  };
+
+  if ("requestIdleCallback" in window) {
+    requestIdleCallback(lancer, { timeout: 8000 });
+  } else {
+    setTimeout(lancer, 3000);
+  }
+}
+
 async function transcrire(blob) {
   const bouton = $("micro-btn");
   bouton.disabled = true;
@@ -296,8 +369,9 @@ async function transcrire(blob) {
     const module = await import("/transcription.js");
 
     if (!module.modelePret()) {
-      $("micro-statut").textContent =
-        "Premier usage : téléchargement du modèle de dictée (une seule fois).";
+      $("micro-statut").textContent = module.chargementEnCours()
+        ? "Préparation de la dictée en cours…"
+        : "Premier usage : téléchargement du modèle de dictée (une seule fois).";
     }
 
     const texte = await module.transcrire(blob, (etape, pourcentage) => {
@@ -378,6 +452,10 @@ async function basculerDictee() {
   majBoutonMicro(true);
   statut($("redaction-statut"), "");
   $("micro-statut").textContent = "Enregistrement… parlez normalement.";
+
+  // Le modèle se charge pendant que la personne parle : à l'arrêt, il n'y a
+  // plus qu'à transcrire.
+  preparerDictee();
 }
 
 // --- Initialisation ---
@@ -399,6 +477,11 @@ export function initRedaction() {
 
   $("generer-btn").addEventListener("click", generer);
   $("micro-btn").addEventListener("click", basculerDictee);
+
+  // Approcher le bouton suffit à déclencher la préparation : le temps de viser
+  // et de cliquer est déjà pris sur l'attente.
+  $("micro-btn").addEventListener("pointerenter", preparerDictee);
+  $("micro-btn").addEventListener("focus", preparerDictee);
 
   // Ctrl/⌘ + Entrée depuis la zone de saisie : lancer la génération sans
   // quitter le clavier.

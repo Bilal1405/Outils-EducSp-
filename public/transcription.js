@@ -31,10 +31,46 @@
 // sans WebGPU). Les dépôts "Xenova/whisper-*" sont équivalents.
 const MODELE = "onnx-community/whisper-base";
 
+/**
+ * Précision des poids. `undefined` laisse transformers.js prendre la variante
+ * pleine précision publiée par le dépôt.
+ *
+ * Passer à "q8" (ou { encoder_model: "fp32", decoder_model_merged: "q4" } pour
+ * WebGPU) divise le téléchargement initial par trois environ et accélère
+ * l'instanciation, au prix d'une transcription un peu moins fidèle. C'est un
+ * arbitrage sur la qualité du compte-rendu, pas un réglage technique : il se
+ * change ici, en connaissance de cause, et se vérifie sur de vraies dictées.
+ */
+const PRECISION = undefined;
+
 const BIBLIOTHEQUE = "/vendor/transformers.min.js";
 
 // Whisper travaille exclusivement en mono 16 kHz.
 const TAUX_ECHANTILLONNAGE = 16000;
+
+/**
+ * Mémorise qu'un chargement a déjà abouti sur ce poste. Sert uniquement à
+ * décider si l'application peut préparer la dictée d'elle-même au démarrage :
+ * si le modèle est déjà dans le cache du navigateur, l'y remettre ne coûte
+ * aucun réseau. Aucune donnée de bénéficiaire n'est stockée.
+ */
+const CLE_DEJA_CHARGE = "dicteeModeleDejaCharge";
+
+export function modeleDejaCharge() {
+  try {
+    return localStorage.getItem(CLE_DEJA_CHARGE) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function memoriserChargement() {
+  try {
+    localStorage.setItem(CLE_DEJA_CHARGE, "1");
+  } catch {
+    /* Stockage refusé : on retombe simplement sur la préparation à la demande. */
+  }
+}
 
 let transcripteurPromise = null;
 let transcripteurPret = false;
@@ -45,6 +81,11 @@ let transcripteurPret = false;
  */
 export function modelePret() {
   return transcripteurPret;
+}
+
+/** Un chargement est-il en cours ? Évite d'en déclencher un second. */
+export function chargementEnCours() {
+  return transcripteurPromise !== null && !transcripteurPret;
 }
 
 /**
@@ -64,6 +105,11 @@ function chargerTranscripteur(onProgression) {
     // par défaut (cf. README pour basculer en local).
     env.allowLocalModels = false;
 
+    // Cache du navigateur : c'est lui qui évite de retélécharger les poids à
+    // chaque lancement. C'est le défaut de transformers.js, rendu explicite
+    // parce que toute la stratégie de préparation en dépend.
+    env.useBrowserCache = true;
+
     // WebGPU quand le navigateur le supporte (transcription plusieurs fois plus
     // rapide), repli sur WASM sinon.
     let derniereErreur;
@@ -71,9 +117,11 @@ function chargerTranscripteur(onProgression) {
       try {
         const transcripteur = await pipeline("automatic-speech-recognition", MODELE, {
           device,
+          dtype: PRECISION,
           progress_callback: onProgression,
         });
         transcripteurPret = true;
+        memoriserChargement();
         return transcripteur;
       } catch (err) {
         derniereErreur = err;
@@ -163,15 +211,25 @@ export async function transcrire(blob, onEtape = () => {}) {
 }
 
 /**
- * Déclenche le téléchargement du modèle sans attendre une dictée, pour que le
- * premier usage réel ne subisse pas l'attente. Échec silencieux : ce n'est
- * qu'une optimisation de confort.
+ * Prépare le modèle sans attendre une dictée.
+ *
+ * Le coût d'une première dictée se décompose en deux : le téléchargement des
+ * poids (une seule fois par poste, ensuite servi par le cache) et
+ * l'instanciation du graphe ONNX (quelques secondes, à chaque onglet). Les
+ * deux peuvent se faire pendant que l'éducateur fait autre chose ; les subir
+ * après avoir cliqué sur « Arrêter » n'apporte rien.
+ *
+ * Échec silencieux : ce n'est qu'une avance de phase, la dictée réessaiera.
+ *
+ * @returns {Promise<boolean>} le modèle est-il prêt au terme de l'appel
  */
 export function prechargerModele(onEtape = () => {}) {
   return chargerTranscripteur((progression) => {
     if (progression.status === "progress" && progression.total) {
       const pct = Math.round((progression.loaded / progression.total) * 100);
-      onEtape(`Préparation du modèle de dictée : ${pct} %`);
+      onEtape("Téléchargement du modèle de dictée…", pct);
     }
-  }).catch(() => {});
+  })
+    .then(() => true)
+    .catch(() => false);
 }

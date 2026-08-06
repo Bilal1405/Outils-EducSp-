@@ -62,12 +62,42 @@ Conséquences :
   Aucune donnée patient n'est transmise lors de ces téléchargements, mais ils
   supposent un accès réseau.
 
-Les dictées suivantes sont immédiates. Sur un navigateur qui expose WebGPU
-(Chrome, Edge), la transcription est plusieurs fois plus rapide ; sinon elle
-s'exécute en WebAssembly sur le processeur.
+Sur un navigateur qui expose WebGPU (Chrome, Edge), la transcription est
+plusieurs fois plus rapide ; sinon elle s'exécute en WebAssembly sur le
+processeur.
 
-Le modèle se change en une ligne, dans `public/transcription.js` :
-`whisper-tiny` pour plus de rapidité, `whisper-small` pour plus de précision.
+### Quand le modèle est-il préparé
+
+Une dictée coûte deux choses : le téléchargement des poids — une seule fois par
+poste, ensuite servi par le cache du navigateur — et l'instanciation du graphe
+ONNX, quelques secondes à chaque onglet. Les subir après le clic sur
+« Arrêter », au moment précis où l'on attend son texte, n'apporte rien. La
+préparation est donc avancée, à trois moments :
+
+- **au survol ou à la mise au clavier du bouton micro** — viser et cliquer
+  prend déjà une partie de l'attente ;
+- **au démarrage de l'enregistrement**, pendant que la personne parle : sur une
+  dictée d'une minute, le modèle est prêt bien avant l'arrêt ;
+- **à l'ouverture d'un écran de rédaction**, en temps mort, *uniquement si le
+  modèle a déjà été chargé sur ce poste* — il est alors dans le cache et le
+  remettre en mémoire ne consomme aucun réseau.
+
+Un téléchargement réel est toujours annoncé, avec son avancement : engager
+plusieurs dizaines de mégaoctets en silence n'est pas acceptable. Rien n'est
+préchargé automatiquement tant que le premier chargement n'a pas abouti, ni
+lorsque le navigateur signale un mode économie de données.
+
+### Régler la taille du modèle
+
+Deux constantes en tête de `public/transcription.js` :
+
+- `MODELE` — `whisper-tiny` télécharge et démarre nettement plus vite,
+  `whisper-small` transcrit mieux mais devient lourd sans WebGPU ;
+- `PRECISION` — `"q8"` divise le téléchargement par trois environ et accélère
+  l'instanciation, au prix d'une transcription un peu moins fidèle.
+
+Le second est un arbitrage sur la qualité du compte-rendu, pas un réglage
+technique : à vérifier sur de vraies dictées avant de l'adopter.
 
 ### Fonctionnement 100 % hors ligne (optionnel)
 

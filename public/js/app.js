@@ -27,7 +27,12 @@ import {
   chargerBeneficiaires,
   dessinerProfil,
 } from "./beneficiaires.js";
-import { initRedaction, restaurerBrouillon, arreterDicteeSiActive } from "./redaction.js";
+import {
+  initRedaction,
+  restaurerBrouillon,
+  arreterDicteeSiActive,
+  planifierPreparationDictee,
+} from "./redaction.js";
 import { initBilan, ouvrirBilan } from "./bilan.js";
 
 // --- Vues et onglets ---
@@ -251,6 +256,9 @@ async function demarrer() {
     restaurerBrouillon();
     montrerVue("beneficiaire");
     activerOnglet("redaction");
+    // L'écran de rédaction est ouvert : le micro peut servir d'un instant à
+    // l'autre, autant remettre le modèle en mémoire dès maintenant.
+    planifierPreparationDictee();
     await chargerBilans();
   });
 
