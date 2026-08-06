@@ -4,6 +4,7 @@ import { pool } from "./db";
 import { bilansRouter } from "./routes/bilans";
 import { etablissementsRouter } from "./routes/etablissements";
 import { patientsRouter } from "./routes/patients";
+import { schemaRouter } from "./routes/schema";
 import { utilisateursRouter } from "./routes/utilisateurs";
 
 export function createApp() {
@@ -27,6 +28,7 @@ export function createApp() {
   });
 
   app.use(express.static(path.join(__dirname, "..", "public")));
+  app.use(schemaRouter);
   app.use(etablissementsRouter);
   app.use(patientsRouter);
   app.use(utilisateursRouter);

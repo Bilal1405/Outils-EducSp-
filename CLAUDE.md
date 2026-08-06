@@ -7,7 +7,8 @@ handicap). Interface et code en français.
 
 - Backend : Node.js 22 + **Express 4** + TypeScript (CommonJS, strict)
 - DB : PostgreSQL, **SQL brut** (`node-postgres`), migrations dans `db/migrations/`
-- Frontend : **HTML/CSS/JS vanilla** dans `public/` (pas de bundler)
+- Frontend : **HTML/CSS/JS vanilla** dans `public/` — modules ES natifs dans
+  `public/js/`, pas de bundler, pas de framework
 - Validation : Zod — `src/schema/bilan.schema.ts` est la **source unique** du schéma bilan
 - LLM : adaptateur `src/services/llmClient.ts` (`LLM_PROVIDER=cerebras|ollama`)
 - Transcription : `public/transcription.js` — Whisper dans le navigateur
@@ -39,7 +40,8 @@ npm run migrate
 
 Fait : schéma Zod, migrations 001–008, moteur de génération (+retry), adaptateur
 LLM, transcription navigateur, quotas, export .docx, API
-patients/utilisateurs/bilans, UI `public/`, `/health`, déploiement Render.
+patients/utilisateurs/bilans, `/api/schema/bilan`, UI `public/` (accueil guidé,
+relecture champ par champ), `/health`, déploiement Render.
 
 > `SPEC-moteur-bilan.md` décrit un `audioFileId` transcrit par un Whisper
 > self-hosted côté serveur. Remplacé : la transcription se fait dans le
@@ -49,6 +51,10 @@ patients/utilisateurs/bilans, UI `public/`, `/health`, déploiement Render.
 Reste : authentification réelle (`x-user-id` est un placeholder non vérifié),
 cloisonnement par établissement + tests, audit_logs, chiffrement
 `informations_sante`, Stripe, gabarits RGPD, durcissement déploiement.
+
+Manque aussi une date de validation en base : `bilans` ne garde pas l'instant
+du passage en « validé ». L'UI ne l'affiche donc pas — ne pas écrire
+« validé le … » tant que la colonne n'existe pas.
 
 ## Conventions de réponse
 

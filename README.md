@@ -101,7 +101,13 @@ npm run validate:corpus  # corpus de test contre un Ollama réel (voir ci-dessou
 - `src/services/bilanGenerator.ts` — `generateBilan(inputText, previousBilan?)` : appelle le LLM, parse et valide la sortie, retry une fois si invalide
 - `src/services/llmClient.ts` — abstraction fournisseur LLM (`LLM_PROVIDER=cerebras|ollama`)
 - `src/services/cerebrasClient.ts` / `ollamaClient.ts` — clients HTTP vers les fournisseurs LLM
+- `src/routes/schema.ts` — publie les listes fermées du schéma pour l'interface
 - `public/transcription.js` — transcription vocale Whisper exécutée dans le navigateur
+- `public/js/` — interface découpée en modules ES natifs (aucun empaqueteur) :
+  `api` (accès HTTP), `etat` (état + bus d'événements), `ui` (briques
+  communes), `reglages` (établissement/éducateur/quota), `beneficiaires`,
+  `redaction` (période, dictée, génération), `bilan` (relecture et
+  correction), `app` (assemblage)
 - `src/repositories/bilanRepository.ts` — accès DB (dernier bilan validé, insertion en brouillon)
 - `src/repositories/patientRepository.ts` / `utilisateurRepository.ts` — gestion des bénéficiaires/éducateurs
 - `src/routes/bilans.ts` — `POST /api/patients/:id/bilans/generate`
@@ -111,13 +117,23 @@ npm run validate:corpus  # corpus de test contre un Ollama réel (voir ci-dessou
 - `test/fixtures/inputs.ts` — corpus de 10 comptes-rendus fictifs
 - `test/validate-corpus.ts` — exécute le corpus contre un Ollama réel et logue les échecs de validation de schéma
 
-## Endpoint
+## Endpoints
 
 ```
 POST /api/patients/:id/bilans/generate
 Headers: x-user-id: <auteur_id>   (placeholder en attendant l'authentification)
 Body: { texte: string, source?: "texte" | "audio", periode_debut: string, periode_fin: string }
 ```
+
+```
+GET /api/schema/bilan
+→ { domaines_competence, types_comportement, frequences_comportement }
+```
+
+L'écran de relecture propose ces valeurs en listes déroulantes plutôt qu'en
+saisie libre : l'éducateur ne peut pas produire un bilan que la validation
+serveur rejettera. Les recopier côté `public/` en ferait une seconde
+définition, vouée à diverger de `src/schema/bilan.schema.ts`.
 
 `source` sert uniquement de traçabilité : la dictée étant transcrite côté
 navigateur, le serveur ne reçoit que du texte.
@@ -129,10 +145,40 @@ génère le bilan via `generateBilan()`, l'enregistre en base avec le statut
 
 ## Interface web
 
-Une fois le serveur démarré (`npm run dev`), ouvrez `http://localhost:3000`
-dans un navigateur : la page permet de sélectionner ou créer un bénéficiaire
-et un éducateur, saisir un compte-rendu et une période, puis déclencher la
-génération et visualiser le bilan produit (vue lisible + JSON brut).
+Une fois le serveur démarré (`npm run dev`), ouvrez `http://localhost:3000`.
+
+Le parcours suit le travail réel d'un éducateur — choisir une personne,
+raconter la période, relire, exporter :
+
+1. **Mise en route.** Au premier lancement, l'écran d'accueil liste les trois
+   éléments à définir (établissement, éducateur, premier bénéficiaire) et les
+   coche au fur et à mesure. Le tiroir de réglages s'ouvre de lui-même sur
+   l'étape qui bloque.
+2. **Colonne de gauche.** Uniquement les bénéficiaires de l'établissement
+   courant, avec recherche insensible aux accents (`/` place le curseur).
+   Établissement, éducateur et quota vivent en tête de page et dans le tiroir
+   de réglages, hors du flux de travail.
+3. **Rédiger.** Raccourcis de période (trimestre en cours, trimestre
+   précédent, année scolaire), zone de saisie unique, dictée au micro,
+   `Ctrl`/`⌘ + Entrée` pour lancer. Un compte-rendu commencé est conservé en
+   mémoire si vous changez de bénéficiaire — jamais sur disque : un
+   compte-rendu ne doit pas se retrouver dans le stockage du navigateur.
+4. **Relire.** Le bilan s'affiche section par section, chaque champ
+   modifiable. Les valeurs contraintes sont proposées en listes déroulantes
+   issues de `/api/schema/bilan` : impossible de saisir une valeur que le
+   serveur rejettera. Un champ vide reste visiblement vide, une section vide
+   le dit explicitement. Le JSON brut reste consultable en bas de page.
+5. **Valider.** Confirmation explicite, puis passage en lecture seule et
+   archivage définitif. L'export `.docx` reste disponible ; si des
+   modifications sont en attente, elles sont enregistrées avant l'export pour
+   que le fichier corresponde à l'écran.
+
+Le quota mensuel est affiché en permanence, avec une jauge qui change de
+couleur avant l'épuisement — le découvrir au moment du refus serait tardif.
+
+En écran étroit, la colonne des bénéficiaires devient un tiroir. L'interface
+s'affiche en clair uniquement : l'outil s'utilise en journée, souvent à
+plusieurs devant le même écran.
 
 ## Déploiement (Render)
 

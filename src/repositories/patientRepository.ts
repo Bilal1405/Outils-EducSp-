@@ -4,10 +4,11 @@ export interface PatientSummary {
   id: string;
   nom: string;
   prenom: string;
+  /** Affiché sous forme d'âge dans la liste de l'interface. */
+  date_naissance: string | null;
 }
 
 export interface Patient extends PatientSummary {
-  date_naissance: string | null;
   etablissement_id: string;
 }
 
@@ -23,13 +24,14 @@ export async function listPatients(
 ): Promise<PatientSummary[]> {
   if (etablissementId) {
     const { rows } = await pool.query<PatientSummary>(
-      `SELECT id, nom, prenom FROM patients WHERE etablissement_id = $1 ORDER BY nom, prenom`,
+      `SELECT id, nom, prenom, date_naissance FROM patients
+       WHERE etablissement_id = $1 ORDER BY nom, prenom`,
       [etablissementId]
     );
     return rows;
   }
   const { rows } = await pool.query<PatientSummary>(
-    `SELECT id, nom, prenom FROM patients ORDER BY nom, prenom`
+    `SELECT id, nom, prenom, date_naissance FROM patients ORDER BY nom, prenom`
   );
   return rows;
 }

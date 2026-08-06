@@ -37,6 +37,15 @@ const BIBLIOTHEQUE = "/vendor/transformers.min.js";
 const TAUX_ECHANTILLONNAGE = 16000;
 
 let transcripteurPromise = null;
+let transcripteurPret = false;
+
+/**
+ * Le modèle est-il déjà en mémoire ? L'interface s'en sert pour prévenir que
+ * la première dictée déclenche un téléchargement, et seulement celle-là.
+ */
+export function modelePret() {
+  return transcripteurPret;
+}
 
 /**
  * Charge la bibliothèque et instancie le pipeline. Le résultat est mémorisé :
@@ -60,10 +69,12 @@ function chargerTranscripteur(onProgression) {
     let derniereErreur;
     for (const device of ["webgpu", "wasm"]) {
       try {
-        return await pipeline("automatic-speech-recognition", MODELE, {
+        const transcripteur = await pipeline("automatic-speech-recognition", MODELE, {
           device,
           progress_callback: onProgression,
         });
+        transcripteurPret = true;
+        return transcripteur;
       } catch (err) {
         derniereErreur = err;
       }
@@ -111,8 +122,11 @@ async function versPcmMono16k(blob) {
 /**
  * Transcrit un enregistrement audio en texte français.
  *
- * @param {Blob} blob        enregistrement issu de MediaRecorder
- * @param {(etape: string) => void} [onEtape]  retour d'avancement pour l'UI
+ * @param {Blob} blob  enregistrement issu de MediaRecorder
+ * @param {(etape: string, pourcentage?: number) => void} [onEtape]
+ *        avancement pour l'UI ; le pourcentage n'est fourni que pendant un
+ *        téléchargement, il permet d'afficher une barre plutôt qu'une attente
+ *        sans fin
  * @returns {Promise<string>} texte transcrit
  */
 export async function transcrire(blob, onEtape = () => {}) {
@@ -127,7 +141,7 @@ export async function transcrire(blob, onEtape = () => {}) {
   const transcripteur = await chargerTranscripteur((progression) => {
     if (progression.status === "progress" && progression.total) {
       const pct = Math.round((progression.loaded / progression.total) * 100);
-      onEtape(`Téléchargement du modèle (${progression.file}) : ${pct} %`);
+      onEtape("Téléchargement du modèle de dictée…", pct);
     }
   });
 
