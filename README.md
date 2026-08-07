@@ -156,8 +156,24 @@ Body: { texte: string, source?: "texte" | "audio", periode_debut: string, period
 ```
 
 ```
+POST /api/patients/:id/bilans
+Headers: x-user-id: <auteur_id>
+Body: { type: "repit" | "trimestriel", periode_debut: string, periode_fin: string }
+```
+
+Ouvre un bilan à trame fixe. Aucun appel au moteur : le brouillon est créé avec
+toutes ses clés, vides, et se remplit dans le parcours guidé.
+
+```
 GET /api/schema/bilan
 → { domaines_competence, types_comportement, frequences_comportement }
+
+GET /api/schema/modeles
+→ { types, modeles: { repit, trimestriel } }
+
+POST /api/assistance/reformulation
+Body: { texte: string, intitule?: string }
+→ { texte: string }
 ```
 
 L'écran de relecture propose ces valeurs en listes déroulantes plutôt qu'en
@@ -177,8 +193,33 @@ génère le bilan via `generateBilan()`, l'enregistre en base avec le statut
 
 Une fois le serveur démarré (`npm run dev`), ouvrez `http://localhost:3000`.
 
-Le parcours suit le travail réel d'un éducateur — choisir une personne,
-raconter la période, relire, exporter :
+### Trois trames de bilan
+
+| Trame | Comment elle se remplit |
+| --- | --- |
+| **Bilan** | Compte-rendu libre, dicté ou tapé, rédigé par le moteur puis relu champ par champ. |
+| **Bilan de fin de séjour en répit** | Parcours guidé de 18 étapes reprenant le document existant. |
+| **Bilan trimestriel** | Parcours guidé de 12 étapes reprenant le document existant. |
+
+Les deux trames fixes sont des **grilles d'évaluation** : elles se cochent à la
+main. Les faire déduire par un modèle reviendrait à lui faire coter des
+compétences qu'il n'a pas observées. Le moteur n'y intervient qu'à un endroit,
+sur demande — remettre au propre un commentaire dicté, sans rien y ajouter ; le
+texte d'origine reste restaurable d'un clic.
+
+Chaque étape tient dans une hauteur d'écran, sans défilement : c'est ce qui
+dicte le découpage, pas la structure du document d'origine. Le travail est
+enregistré à chaque changement d'étape, et se reprend là où il s'était arrêté.
+
+La trame est décrite **une seule fois**, dans `src/schema/modelesBilan.ts`, et
+sert à la fois à valider le contenu enregistré, à construire le formulaire et à
+produire l'export Word. Une ligne ajoutée à une grille apparaît donc dans les
+trois, ou dans aucun.
+
+### Le parcours
+
+Il suit le travail réel d'un éducateur — choisir une personne, raconter la
+période, relire, exporter :
 
 1. **Mise en route.** Au premier lancement, l'écran d'accueil liste les trois
    éléments à définir (établissement, éducateur, premier bénéficiaire) et les

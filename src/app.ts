@@ -1,6 +1,7 @@
 import path from "node:path";
 import express from "express";
 import { pool } from "./db";
+import { assistanceRouter } from "./routes/assistance";
 import { bilansRouter } from "./routes/bilans";
 import { etablissementsRouter } from "./routes/etablissements";
 import { patientsRouter } from "./routes/patients";
@@ -29,6 +30,7 @@ export function createApp() {
 
   app.use(express.static(path.join(__dirname, "..", "public")));
   app.use(schemaRouter);
+  app.use(assistanceRouter);
   app.use(etablissementsRouter);
   app.use(patientsRouter);
   app.use(utilisateursRouter);

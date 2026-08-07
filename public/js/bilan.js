@@ -12,6 +12,7 @@
  */
 import { api } from "./api.js";
 import { etat, emettre } from "./etat.js";
+import { ouvrirParcours, rendreModeleLectureSeule } from "./parcours.js";
 import {
   $,
   creer,
@@ -478,14 +479,29 @@ function dessinerCorps() {
 
 // --- Ouverture ---
 
-export function ouvrirBilan(bilan, libelleRetour) {
+export function ouvrirBilan(bilan, libelleRetour, options = {}) {
+  const trame = bilan.type_bilan || "bilan";
+  const guideEnBrouillon = trame !== "bilan" && bilan.statut !== "validé";
+
+  // Un bilan à trame fixe encore en brouillon se reprend là où il en était :
+  // le formulaire guidé est son écran d'édition, pas celui-ci. Sauf demande
+  // explicite — à la fin du parcours, on vient justement s'y relire.
+  if (guideEnBrouillon && !options.relecture) {
+    ouvrirParcours(bilan);
+    return;
+  }
+
   etat.bilanCourant = bilan;
   etat.contenuEdite = structuredClone(bilan.contenu);
   etat.modifie = false;
   retourLibelle = libelleRetour || "Retour";
 
+  const modele = trame === "bilan" ? null : etat.modeles && etat.modeles[trame];
+
   $("bilan-retour-libelle").textContent = retourLibelle;
-  $("bilan-titre").textContent = `Bilan ${formatDate(bilan.periode_debut)} → ${formatDate(bilan.periode_fin)}`;
+  $("bilan-titre").textContent = modele
+    ? `${modele.nom} · ${formatDate(bilan.periode_debut)} → ${formatDate(bilan.periode_fin)}`
+    : `Bilan ${formatDate(bilan.periode_debut)} → ${formatDate(bilan.periode_fin)}`;
 
   const origine = bilan.source === "audio" ? "dicté" : "saisi au clavier";
   $("bilan-meta").textContent = bilan.date_generation
@@ -499,11 +515,19 @@ export function ouvrirBilan(bilan, libelleRetour) {
 
   $("bilan-consigne").hidden = valide;
   $("bilan-consigne-valide").hidden = !valide;
-  $("bilan-enregistrer").hidden = valide;
+  // Un bilan à trame fixe ne s'édite pas ici : on y retourne par le parcours,
+  // qui est son écran de saisie.
+  $("bilan-enregistrer").hidden = valide || Boolean(modele);
+  $("bilan-reprendre").hidden = !guideEnBrouillon;
   $("bilan-valider").hidden = valide;
   $("bilan-export").href = api.lienExport(bilan.id);
 
-  dessinerCorps();
+  if (modele) {
+    rendreModeleLectureSeule(modele, etat.contenuEdite, $("bilan-corps"));
+    $("bilan-json").textContent = JSON.stringify(etat.contenuEdite, null, 2);
+  } else {
+    dessinerCorps();
+  }
   majIndicateur();
   emettre("vue", "bilan");
   $("zone-travail").scrollTo({ top: 0 });
@@ -516,6 +540,13 @@ export function ouvrirBilan(bilan, libelleRetour) {
  * est de rendre l'erreur compréhensible et située.
  */
 function verifierContenu(contenu) {
+  // Contrôle propre à la trame « bilan » : elle seule porte un `en_tete` avec
+  // un âge numérique. Les trames fixes n'ont pas de champ à ce format, et le
+  // serveur les valide de toute façon contre leur propre schéma.
+  const trame = etat.bilanCourant ? etat.bilanCourant.type_bilan || "bilan" : "bilan";
+  if (trame !== "bilan") {
+    return null;
+  }
   if (!Number.isFinite(contenu.en_tete.beneficiaire_age)) {
     return "L'âge du bénéficiaire doit être un nombre.";
   }
@@ -579,6 +610,10 @@ export function initBilan() {
   });
 
   $("bilan-enregistrer").addEventListener("click", () => enregistrer({ valider: false }));
+
+  $("bilan-reprendre").addEventListener("click", () => {
+    ouvrirParcours(etat.bilanCourant);
+  });
 
   $("bilan-valider").addEventListener("click", () => {
     $("dlg-validation").showModal();

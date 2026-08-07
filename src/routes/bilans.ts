@@ -11,7 +11,7 @@ import {
   updateBilan,
 } from "../repositories/bilanRepository";
 import { getQuotaStatus, decrementerQuota } from "../services/quotaService";
-import { BilanSchema } from "../schema/bilan.schema";
+import { schemaPourType, contenuVierge } from "../schema/modeleValidation";
 import { genererBilanDocx, nomFichierBilanDocx } from "../services/bilanDocxExport";
 
 export const bilansRouter = Router();
@@ -37,8 +37,9 @@ bilansRouter.get("/api/bilans/:id/export.docx", async (req, res) => {
     return res.status(404).json({ error: "Bilan introuvable" });
   }
 
-  const buffer = await genererBilanDocx(bilan.contenu);
+  const buffer = await genererBilanDocx(bilan.type_bilan, bilan.contenu);
   const filename = nomFichierBilanDocx(
+    bilan.type_bilan,
     bilan.beneficiaire,
     bilan.periode_debut,
     bilan.periode_fin
@@ -123,6 +124,7 @@ bilansRouter.post("/api/patients/:id/bilans/generate", async (req, res) => {
       patientId,
       etablissementId: patient.etablissement_id,
       auteurId,
+      typeBilan: "bilan",
       periodeDebut: periode_debut,
       periodeFin: periode_fin,
       source,
@@ -139,6 +141,7 @@ bilansRouter.post("/api/patients/:id/bilans/generate", async (req, res) => {
     return res.status(201).json({
       id: saved.id,
       statut: "brouillon",
+      type_bilan: "bilan",
       contenu: bilan,
       quota: quotaApres,
     });
@@ -156,9 +159,94 @@ bilansRouter.post("/api/patients/:id/bilans/generate", async (req, res) => {
   }
 });
 
+const CreerBilanBodySchema = z.object({
+  /** Le type « bilan » passe par la génération, pas par cette route. */
+  type: z.enum(["repit", "trimestriel"]),
+  periode_debut: z.string().min(1),
+  periode_fin: z.string().min(1),
+});
+
+/**
+ * Ouvre un bilan à trame fixe (Répit, Trimestriel).
+ *
+ * Aucun appel au moteur ici : le document est rempli par l'éducateur dans un
+ * parcours guidé. Le brouillon est créé d'emblée avec toutes ses clés, vides,
+ * pour qu'un enregistrement partiel reste valide et qu'aucune section ne
+ * disparaisse tant qu'elle n'a pas été remplie.
+ *
+ * Le quota est décompté à la création, comme pour un bilan généré : c'est un
+ * compteur de bilans, et la règle reste la même quelle que soit la trame.
+ */
+bilansRouter.post("/api/patients/:id/bilans", async (req, res) => {
+  const patientId = req.params.id;
+
+  // TODO: remplacer par l'utilisateur authentifié une fois l'auth en place.
+  const auteurId = req.header("x-user-id");
+  if (!auteurId) {
+    return res.status(401).json({ error: "Utilisateur non authentifié" });
+  }
+
+  const parsed = CreerBilanBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: "Requête invalide",
+      details: parsed.error.flatten(),
+    });
+  }
+
+  const patient = await getPatientById(patientId);
+  if (!patient) {
+    return res.status(404).json({ error: "Bénéficiaire introuvable" });
+  }
+
+  const { type, periode_debut, periode_fin } = parsed.data;
+
+  const quotaAvant = await getQuotaStatus(patient.etablissement_id);
+  if (!quotaAvant) {
+    return res.status(500).json({ error: "Établissement introuvable pour ce patient" });
+  }
+  if (quotaAvant.restant <= 0) {
+    return res.status(429).json({
+      error: "Quota mensuel de bilans atteint pour cet établissement",
+      quota: quotaAvant,
+    });
+  }
+
+  const contenu = contenuVierge(type) as Record<string, unknown>;
+
+  const saved = await creerBilanBrouillon({
+    patientId,
+    etablissementId: patient.etablissement_id,
+    auteurId,
+    typeBilan: type,
+    periodeDebut: periode_debut,
+    periodeFin: periode_fin,
+    // Le document n'est pas issu d'une dictée : il est saisi directement.
+    // Les zones de commentaire peuvent l'être, mais pas le bilan dans son
+    // ensemble.
+    source: "texte",
+    contenu,
+  });
+
+  const quotaApres = await decrementerQuota(
+    patient.etablissement_id,
+    quotaAvant.quota_mensuel
+  );
+
+  return res.status(201).json({
+    id: saved.id,
+    statut: "brouillon",
+    type_bilan: type,
+    contenu,
+    periode_debut,
+    periode_fin,
+    quota: quotaApres,
+  });
+});
+
 const UpdateBilanBodySchema = z
   .object({
-    contenu: BilanSchema.optional(),
+    contenu: z.unknown().optional(),
     statut: z.literal("validé").optional(),
   })
   .refine((data) => data.contenu !== undefined || data.statut !== undefined, {
@@ -190,6 +278,26 @@ bilansRouter.patch("/api/bilans/:id", async (req, res) => {
     });
   }
 
-  const updated = await updateBilan(req.params.id, parsed.data);
+  // Le contenu se valide contre la trame du bilan, pas contre une trame
+  // choisie par l'appelant : un contenu de répit ne peut pas être écrit dans
+  // un trimestriel.
+  let contenu;
+  if (parsed.data.contenu !== undefined) {
+    const contenuParse = schemaPourType(existing.type_bilan).safeParse(
+      parsed.data.contenu
+    );
+    if (!contenuParse.success) {
+      return res.status(400).json({
+        error: `Contenu invalide pour un bilan de type « ${existing.type_bilan} »`,
+        details: contenuParse.error.flatten(),
+      });
+    }
+    contenu = contenuParse.data;
+  }
+
+  const updated = await updateBilan(req.params.id, {
+    contenu,
+    statut: parsed.data.statut,
+  });
   return res.json(updated);
 });

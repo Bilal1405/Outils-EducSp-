@@ -9,6 +9,14 @@
 export const etat = {
   /** Listes fermées du schéma, chargées une fois au démarrage. */
   schema: null,
+  /** Trames des bilans Répit et Trimestriel, publiées par le serveur. */
+  modeles: null,
+  typesBilan: [],
+  /** Trame retenue pour le prochain bilan de ce bénéficiaire. */
+  typeChoisi: "bilan",
+
+  /** Parcours guidé en cours : bilan ouvert, étape affichée, brouillon local. */
+  parcours: null,
 
   etablissements: [],
   etablissementId: null,

@@ -4,6 +4,7 @@ import {
   TYPES_COMPORTEMENT,
   FREQUENCES_COMPORTEMENT,
 } from "../schema/bilan.schema";
+import { MODELES, LIBELLES_TYPE_BILAN, TYPES_BILAN } from "../schema/modelesBilan";
 
 export const schemaRouter = Router();
 
@@ -21,5 +22,24 @@ schemaRouter.get("/api/schema/bilan", (_req, res) => {
     domaines_competence: DOMAINES_COMPETENCE,
     types_comportement: TYPES_COMPORTEMENT,
     frequences_comportement: FREQUENCES_COMPORTEMENT,
+  });
+});
+
+/**
+ * Trames complètes des bilans Répit et Trimestriel : étapes, grilles de
+ * cotation, échelles, zones de commentaire.
+ *
+ * C'est cette description qui construit le formulaire guidé côté navigateur.
+ * Elle est publiée plutôt que recopiée dans `public/` parce qu'elle sert aussi
+ * à valider le contenu enregistré et à produire l'export .docx : une ligne
+ * ajoutée à une grille doit apparaître dans les trois, ou nulle part.
+ */
+schemaRouter.get("/api/schema/modeles", (_req, res) => {
+  res.json({
+    types: TYPES_BILAN.map((type) => ({
+      type,
+      libelle: LIBELLES_TYPE_BILAN[type],
+    })),
+    modeles: MODELES,
   });
 });

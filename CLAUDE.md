@@ -9,7 +9,12 @@ handicap). Interface et code en français.
 - DB : PostgreSQL, **SQL brut** (`node-postgres`), migrations dans `db/migrations/`
 - Frontend : **HTML/CSS/JS vanilla** dans `public/` — modules ES natifs dans
   `public/js/`, pas de bundler, pas de framework
-- Validation : Zod — `src/schema/bilan.schema.ts` est la **source unique** du schéma bilan
+- Validation : Zod. Trois trames de bilan :
+  - `bilan` — `src/schema/bilan.schema.ts`, rédigée par le moteur ;
+  - `repit` / `trimestriel` — décrites en données dans
+    `src/schema/modelesBilan.ts`, d'où sont **dérivés** le schéma Zod
+    (`modeleValidation.ts`), le formulaire guidé et l'export .docx. Ne jamais
+    recopier ces listes ailleurs.
 - LLM : adaptateur `src/services/llmClient.ts` (`LLM_PROVIDER=cerebras|ollama`)
 - Transcription : `public/transcription.js` — Whisper dans le navigateur
   (transformers.js), aucun service serveur, aucun audio transmis ni stocké
@@ -38,10 +43,19 @@ npm run migrate
 
 ## État d'avancement
 
-Fait : schéma Zod, migrations 001–008, moteur de génération (+retry), adaptateur
-LLM, transcription navigateur, quotas, export .docx, API
-patients/utilisateurs/bilans, `/api/schema/bilan`, UI `public/` (accueil guidé,
-relecture champ par champ), `/health`, déploiement Render.
+Fait : schéma Zod, migrations 001–009, moteur de génération (+retry), adaptateur
+LLM, transcription navigateur, reformulation de commentaires, quotas, export
+.docx des trois trames, API patients/utilisateurs/bilans, `/api/schema/*`,
+UI `public/` (accueil guidé, parcours guidé par étapes, relecture champ par
+champ), `/health`, déploiement Render.
+
+Les trames Répit et Trimestriel se remplissent à la main : le moteur n'y coterait
+que des compétences qu'il n'a pas observées. Il n'intervient que pour remettre au
+propre un commentaire dicté (`/api/assistance/reformulation`), sans rien ajouter.
+
+Contrainte d'écran : une étape de parcours guidé doit tenir dans 1366×768 sans
+défilement. Vérifiée par mesure en navigateur ; `test/modelesBilan.test.ts` borde
+le nombre de lignes de grille par étape. Scinder l'étape et remesurer si dépassé.
 
 > `SPEC-moteur-bilan.md` décrit un `audioFileId` transcrit par un Whisper
 > self-hosted côté serveur. Remplacé : la transcription se fait dans le

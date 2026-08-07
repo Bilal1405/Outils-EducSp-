@@ -34,13 +34,18 @@ import {
   planifierPreparationDictee,
 } from "./redaction.js";
 import { initBilan, ouvrirBilan } from "./bilan.js";
+import { initParcours, ouvrirParcours } from "./parcours.js";
 
 // --- Vues et onglets ---
 
 function montrerVue(nom) {
   $("vue-accueil").hidden = nom !== "accueil";
   $("vue-beneficiaire").hidden = nom !== "beneficiaire";
+  $("vue-parcours").hidden = nom !== "parcours";
   $("vue-bilan").hidden = nom !== "bilan";
+  // Le parcours guidé gère sa propre hauteur : chaque étape doit tenir dans
+  // l'écran, c'est lui qui décide de ce qui défile.
+  $("zone-travail").classList.toggle("zone-travail-pleine", nom === "parcours");
 }
 
 function activerOnglet(nom) {
@@ -104,6 +109,9 @@ function dessinerBilans() {
   compteur.textContent = String(etat.bilans.length);
   $("bilans-vide").hidden = etat.bilans.length > 0;
 
+  const libelleType = (type) =>
+    (etat.typesBilan.find((entree) => entree.type === type) || {}).libelle || "Bilan";
+
   for (const bilan of etat.bilans) {
     const valide = bilan.statut === "validé";
     const origine = bilan.source === "audio" ? "dicté" : "saisi";
@@ -122,11 +130,11 @@ function dessinerBilans() {
             creer("span", { classe: "bilan-ligne-textes" }, [
               creer("span", {
                 classe: "bilan-ligne-periode",
-                texte: `${formatDate(bilan.periode_debut)} → ${formatDate(bilan.periode_fin)}`,
+                texte: `${libelleType(bilan.type_bilan)} · ${formatDate(bilan.periode_debut)} → ${formatDate(bilan.periode_fin)}`,
               }),
               creer("span", {
                 classe: "bilan-ligne-meta",
-                texte: `Généré le ${formatDateHeure(bilan.date_generation)} · ${origine}`,
+                texte: `Ouvert le ${formatDateHeure(bilan.date_generation)} · ${origine}`,
               }),
             ]),
             creer("span", {
@@ -223,6 +231,7 @@ async function demarrer() {
   initBeneficiaires();
   initRedaction();
   initBilan();
+  initParcours();
   initOnglets();
   initBarreLaterale();
   initRaccourcis();
@@ -269,6 +278,16 @@ async function demarrer() {
 
   sur("bilan-enregistre", chargerBilans);
 
+  sur("parcours-ouvert", async (bilan) => {
+    await chargerBilans();
+    ouvrirParcours(bilan);
+  });
+
+  sur("ouvrir-bilan", async ({ bilan, relecture }) => {
+    await chargerBilans();
+    ouvrirBilan(bilan, nomBeneficiaire(), { relecture });
+  });
+
   sur("retour-beneficiaire", () => {
     montrerVue("beneficiaire");
     activerOnglet("bilans");
@@ -278,6 +297,9 @@ async function demarrer() {
 
   try {
     etat.schema = await api.schemaBilan();
+    const trames = await api.modeles();
+    etat.modeles = trames.modeles;
+    etat.typesBilan = trames.types;
     await chargerEtablissements();
     await chargerUtilisateurs();
     await chargerBeneficiaires();

@@ -68,6 +68,7 @@ const bilanDetailFixture = {
   etablissement_id: "etab-1",
   auteur_id: "auteur-1",
   date_generation: "2026-07-01T00:00:00.000Z",
+  type_bilan: "bilan" as const,
   periode_debut: "2024-01-01",
   periode_fin: "2024-03-31",
   statut: "brouillon" as const,

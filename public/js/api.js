@@ -64,6 +64,10 @@ function envoyer(url, methode, corps, entetes = {}) {
 
 export const api = {
   schemaBilan: () => requete("/api/schema/bilan"),
+  modeles: () => requete("/api/schema/modeles"),
+
+  reformuler: (texte, intitule) =>
+    envoyer("/api/assistance/reformulation", "POST", { texte, intitule }),
 
   listerEtablissements: () => requete("/api/etablissements"),
   creerEtablissement: (corps) => envoyer("/api/etablissements", "POST", corps),
@@ -85,6 +89,10 @@ export const api = {
   listerBilans: (beneficiaireId) =>
     requete(`/api/patients/${beneficiaireId}/bilans`),
   bilan: (id) => requete(`/api/bilans/${id}`),
+  ouvrirBilanGuide: (beneficiaireId, auteurId, corps) =>
+    envoyer(`/api/patients/${beneficiaireId}/bilans`, "POST", corps, {
+      "x-user-id": auteurId,
+    }),
   modifierBilan: (id, corps) => envoyer(`/api/bilans/${id}`, "PATCH", corps),
   genererBilan: (beneficiaireId, auteurId, corps) =>
     envoyer(`/api/patients/${beneficiaireId}/bilans/generate`, "POST", corps, {

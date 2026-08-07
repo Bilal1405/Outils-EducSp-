@@ -6,6 +6,7 @@
  */
 import { api } from "./api.js";
 import { etat, emettre } from "./etat.js";
+import * as dictee from "./dictee.js";
 import { $, creer, notifier, statut, vider } from "./ui.js";
 import { ouvrirReglages, afficherQuota, rafraichirQuota } from "./reglages.js";
 
@@ -19,9 +20,8 @@ import { ouvrirReglages, afficherQuota, rafraichirQuota } from "./reglages.js";
  */
 const brouillons = new Map();
 
-let dictee = false;
+let dicteeUtilisee = false;
 let chronoAttente = null;
-let preparationLancee = false;
 /** Un téléchargement de modèle occupe-t-il la ligne d'état ? */
 let preparationAffichee = false;
 
@@ -117,7 +117,7 @@ function memoriserBrouillon() {
     texte: $("saisie").value,
     debut: $("periode-debut").value,
     fin: $("periode-fin").value,
-    dictee,
+    dictee: dicteeUtilisee,
   });
 }
 
@@ -131,7 +131,7 @@ export function restaurerBrouillon() {
   $("saisie").value = brouillon.texte;
   $("periode-debut").value = brouillon.debut;
   $("periode-fin").value = brouillon.fin;
-  dictee = brouillon.dictee;
+  dicteeUtilisee = brouillon.dictee;
 
   marquerRaccourciActif();
   majCompteur();
@@ -142,12 +142,134 @@ export function restaurerBrouillon() {
     $("micro-statut").textContent = "";
   }
   $("generation-encours").hidden = true;
+  dessinerTypes();
+  appliquerType();
 }
 
 function majCompteur() {
   const texte = $("saisie").value.trim();
   const mots = texte ? texte.split(/\s+/).length : 0;
   $("saisie-compteur").textContent = mots === 0 ? "" : `${mots} mot${mots > 1 ? "s" : ""}`;
+}
+
+// --- Choix de la trame ---
+
+/**
+ * Trois trames coexistent. « Bilan » passe par le moteur à partir d'un
+ * compte-rendu libre ; les deux autres reprennent un document existant et se
+ * remplissent dans un parcours guidé. Le choix se fait donc avant tout le
+ * reste, puisqu'il change l'écran.
+ */
+function dessinerTypes() {
+  const conteneur = $("types-bilan");
+  vider(conteneur);
+
+  for (const { type, libelle } of etat.typesBilan) {
+    const actif = etat.typeChoisi === type;
+    conteneur.append(
+      creer(
+        "button",
+        {
+          classe: "type-bilan" + (actif ? " actif" : ""),
+          attrs: {
+            type: "button",
+            role: "radio",
+            "aria-checked": actif ? "true" : "false",
+          },
+          sur: { click: () => choisirType(type) },
+        },
+        [
+          creer("span", { classe: "type-bilan-nom", texte: libelle }),
+          creer("span", {
+            classe: "type-bilan-detail",
+            texte:
+              type === "bilan"
+                ? "Rédigé par le moteur à partir de votre compte-rendu."
+                : "Grille à remplir, étape par étape.",
+          }),
+        ]
+      )
+    );
+  }
+}
+
+function choisirType(type) {
+  etat.typeChoisi = type;
+  dessinerTypes();
+  appliquerType();
+}
+
+function appliquerType() {
+  const guide = etat.typeChoisi !== "bilan";
+  $("bloc-redaction-libre").hidden = guide;
+  $("generation-encours").hidden = true;
+  $("bloc-guide").hidden = !guide;
+
+  if (!guide) return;
+
+  const modele = etat.modeles && etat.modeles[etat.typeChoisi];
+  const nombreEtapes = modele ? modele.etapes.length : 0;
+  $("guide-titre").textContent = modele ? modele.nom : "";
+  $("guide-aide").textContent = modele
+    ? `Ce bilan reprend le document existant : ${nombreEtapes} étapes, une par écran. ` +
+      "Les grilles se cochent à la main, les commentaires se dictent ou se tapent " +
+      "et peuvent être remis au propre par le moteur. Vous pouvez interrompre et reprendre à tout moment."
+    : "";
+  statut($("guide-statut"), "");
+}
+
+async function ouvrirBilanGuide() {
+  const retour = $("guide-statut");
+
+  if (!etat.auteurId) {
+    statut(retour, "Aucun éducateur sélectionné : le bilan doit être signé.", "erreur");
+    ouvrirReglages("educateur");
+    return;
+  }
+
+  const debut = $("periode-debut").value;
+  const fin = $("periode-fin").value;
+  if (!debut || !fin) {
+    statut(retour, "Indiquez la période couverte par le bilan.", "erreur");
+    (debut ? $("periode-fin") : $("periode-debut")).focus();
+    return;
+  }
+  if (debut > fin) {
+    statut(retour, "La date de fin précède la date de début.", "erreur");
+    $("periode-fin").focus();
+    return;
+  }
+  if (etat.quota && etat.quota.restant <= 0) {
+    statut(
+      retour,
+      "Quota mensuel épuisé pour cet établissement : aucun bilan ne peut être ouvert ce mois-ci.",
+      "erreur"
+    );
+    return;
+  }
+
+  const bouton = $("ouvrir-parcours-btn");
+  bouton.disabled = true;
+  statut(retour, "Ouverture du bilan…");
+
+  try {
+    const bilan = await api.ouvrirBilanGuide(etat.beneficiaireId, etat.auteurId, {
+      type: etat.typeChoisi,
+      periode_debut: debut,
+      periode_fin: fin,
+    });
+    if (bilan.quota) {
+      afficherQuota(bilan.quota);
+    }
+    statut(retour, "");
+    emettre("parcours-ouvert", bilan);
+  } catch (err) {
+    statut(retour, err.message, "erreur");
+    notifier(err.message, "erreur");
+    rafraichirQuota();
+  } finally {
+    bouton.disabled = false;
+  }
 }
 
 // --- Génération ---
@@ -225,7 +347,7 @@ async function generer() {
   if (!donnees) return;
 
   const bouton = $("generer-btn");
-  const source = dictee ? "audio" : "texte";
+  const source = dicteeUtilisee ? "audio" : "texte";
   bouton.disabled = true;
   statut($("redaction-statut"), "");
   demarrerAttente();
@@ -244,7 +366,7 @@ async function generer() {
 
     // Le compte-rendu a produit son bilan : le brouillon n'a plus lieu d'être.
     brouillons.delete(etat.beneficiaireId);
-    dictee = false;
+    dicteeUtilisee = false;
 
     notifier("Bilan rédigé. Relisez-le avant de le valider.", "ok");
     emettre("bilan-genere", {
@@ -269,21 +391,17 @@ async function generer() {
 
 // --- Dictée ---
 
-let enregistreur = null;
-let flux = null;
-let morceaux = [];
-
 function majBoutonMicro(enCours) {
   const bouton = $("micro-btn");
   bouton.classList.toggle("enregistre", enCours);
   $("micro-libelle").textContent = enCours ? "Arrêter" : "Dicter";
-  $("micro-icone").querySelector("use").setAttribute("href", enCours ? "#ico-stop" : "#ico-micro");
+  $("micro-icone")
+    .querySelector("use")
+    .setAttribute("href", enCours ? "#ico-stop" : "#ico-micro");
 }
 
 export function arreterDicteeSiActive() {
-  if (enregistreur && enregistreur.state !== "inactive") {
-    enregistreur.stop();
-  }
+  dictee.arreter();
 }
 
 function majProgression(pourcentage) {
@@ -296,166 +414,35 @@ function majProgression(pourcentage) {
   $("micro-progression-barre").style.width = `${Math.max(0, Math.min(100, pourcentage))}%`;
 }
 
-/**
- * Prépare le modèle de dictée en avance de phase.
- *
- * Une première dictée coûte deux choses : le téléchargement des poids — une
- * fois par poste, ensuite servi par le cache du navigateur — et l'instanciation
- * du graphe, quelques secondes à chaque onglet. Rien n'oblige à payer cela
- * après le clic sur « Arrêter », au moment précis où l'éducateur attend son
- * texte. On s'y prend donc plus tôt, à trois occasions : survol du bouton,
- * démarrage de l'enregistrement (pendant que la personne parle), et ouverture
- * de l'écran de rédaction quand le modèle est déjà en cache.
- *
- * Un téléchargement réel est toujours annoncé : engager plusieurs dizaines de
- * mégaoctets en silence n'est pas acceptable.
- */
-async function preparerDictee() {
-  if (preparationLancee) return;
-  preparationLancee = true;
-
-  try {
-    const module = await import("/transcription.js");
-    if (module.modelePret()) return;
-
-    await module.prechargerModele((etape, pourcentage) => {
-      preparationAffichee = true;
-      $("micro-statut").textContent = etape;
-      majProgression(pourcentage);
-    });
-    majProgression(null);
-    if (preparationAffichee) {
-      preparationAffichee = false;
-      $("micro-statut").textContent = module.modelePret() ? "Dictée prête." : "";
-    }
-  } catch {
-    // Nouvelle tentative permise au prochain déclencheur.
-    preparationLancee = false;
-  }
-}
-
-/**
- * Préparation automatique à l'ouverture de l'écran de rédaction, uniquement si
- * le modèle a déjà été chargé sur ce poste : il est alors dans le cache, la
- * remise en mémoire ne consomme aucun réseau. Sinon on attend un geste
- * explicite — personne ne doit déclencher un gros téléchargement sans le
- * vouloir.
- */
 export function planifierPreparationDictee() {
-  if (preparationLancee) return;
-  if (navigator.connection && navigator.connection.saveData) return;
-
-  const lancer = () => {
-    import("/transcription.js")
-      .then((module) => {
-        if (module.modeleDejaCharge()) {
-          preparerDictee();
-        }
-      })
-      .catch(() => {});
-  };
-
-  if ("requestIdleCallback" in window) {
-    requestIdleCallback(lancer, { timeout: 8000 });
-  } else {
-    setTimeout(lancer, 3000);
-  }
+  dictee.planifierPreparation();
 }
 
-async function transcrire(blob) {
-  const bouton = $("micro-btn");
-  bouton.disabled = true;
-  try {
-    const module = await import("/transcription.js");
-
-    if (!module.modelePret()) {
-      $("micro-statut").textContent = module.chargementEnCours()
-        ? "Préparation de la dictée en cours…"
-        : "Premier usage : téléchargement du modèle de dictée (une seule fois).";
-    }
-
-    const texte = await module.transcrire(blob, (etape, pourcentage) => {
-      $("micro-statut").textContent = etape;
+function basculerDictee() {
+  dictee.basculer({
+    onEtat: (phase, message, pourcentage) => {
+      majBoutonMicro(phase === "enregistrement");
       majProgression(pourcentage);
-    });
-
-    const separateur = $("saisie").value.trim() ? "\n\n" : "";
-    $("saisie").value += separateur + texte;
-    dictee = true;
-    memoriserBrouillon();
-    majCompteur();
-    $("micro-statut").textContent = "Transcription ajoutée — relisez-la avant de générer.";
-  } catch (err) {
-    $("micro-statut").textContent = "";
-    statut($("redaction-statut"), `La dictée a échoué : ${err.message}`, "erreur");
-    notifier("La dictée a échoué.", "erreur");
-  } finally {
-    majProgression(null);
-    bouton.disabled = false;
-  }
-}
-
-async function basculerDictee() {
-  if (enregistreur && enregistreur.state === "recording") {
-    enregistreur.stop();
-    return;
-  }
-
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    statut(
-      $("redaction-statut"),
-      "Ce navigateur ne permet pas l'enregistrement audio.",
-      "erreur"
-    );
-    return;
-  }
-
-  try {
-    flux = await navigator.mediaDevices.getUserMedia({ audio: true });
-  } catch {
-    statut(
-      $("redaction-statut"),
-      "Accès au micro refusé. Autorisez-le dans les réglages du navigateur.",
-      "erreur"
-    );
-    return;
-  }
-
-  const format = ["audio/webm", "audio/ogg", "audio/mp4"].find(
-    (type) => window.MediaRecorder && MediaRecorder.isTypeSupported(type)
-  );
-
-  enregistreur = new MediaRecorder(flux, format ? { mimeType: format } : undefined);
-  morceaux = [];
-
-  enregistreur.addEventListener("dataavailable", (evenement) => {
-    if (evenement.data.size > 0) {
-      morceaux.push(evenement.data);
-    }
+      if (phase === "erreur") {
+        statut($("redaction-statut"), message, "erreur");
+        $("micro-statut").textContent = "";
+        preparationAffichee = false;
+        return;
+      }
+      preparationAffichee = phase === "preparation" || phase === "transcription";
+      $("micro-statut").textContent = message;
+    },
+    onTexte: (texte) => {
+      const separateur = $("saisie").value.trim() ? "\n\n" : "";
+      $("saisie").value += separateur + texte;
+      dicteeUtilisee = true;
+      memoriserBrouillon();
+      majCompteur();
+      $("micro-statut").textContent =
+        "Transcription ajoutée — relisez-la avant de générer.";
+      preparationAffichee = false;
+    },
   });
-
-  enregistreur.addEventListener("stop", async () => {
-    majBoutonMicro(false);
-    flux.getTracks().forEach((piste) => piste.stop());
-    flux = null;
-
-    if (morceaux.length === 0) {
-      $("micro-statut").textContent = "";
-      return;
-    }
-    const blob = new Blob(morceaux, { type: enregistreur.mimeType || "audio/webm" });
-    morceaux = [];
-    await transcrire(blob);
-  });
-
-  enregistreur.start();
-  majBoutonMicro(true);
-  statut($("redaction-statut"), "");
-  $("micro-statut").textContent = "Enregistrement… parlez normalement.";
-
-  // Le modèle se charge pendant que la personne parle : à l'arrêt, il n'y a
-  // plus qu'à transcrire.
-  preparerDictee();
 }
 
 // --- Initialisation ---
@@ -475,13 +462,17 @@ export function initRedaction() {
     });
   }
 
+  dessinerTypes();
+  appliquerType();
+
+  $("ouvrir-parcours-btn").addEventListener("click", ouvrirBilanGuide);
   $("generer-btn").addEventListener("click", generer);
   $("micro-btn").addEventListener("click", basculerDictee);
 
   // Approcher le bouton suffit à déclencher la préparation : le temps de viser
   // et de cliquer est déjà pris sur l'attente.
-  $("micro-btn").addEventListener("pointerenter", preparerDictee);
-  $("micro-btn").addEventListener("focus", preparerDictee);
+  $("micro-btn").addEventListener("pointerenter", dictee.preparer);
+  $("micro-btn").addEventListener("focus", dictee.preparer);
 
   // Ctrl/⌘ + Entrée depuis la zone de saisie : lancer la génération sans
   // quitter le clavier.

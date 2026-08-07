@@ -162,6 +162,11 @@
       <!-- Onglet Rédiger -->
       <div id="panneau-redaction" class="panneau" role="tabpanel">
         <section class="carte">
+          <h2 class="carte-titre">Type de bilan</h2>
+          <div id="types-bilan" class="types-bilan" role="radiogroup" aria-label="Type de bilan"></div>
+        </section>
+
+        <section class="carte">
           <h2 class="carte-titre">Période couverte</h2>
           <div id="periode-raccourcis" class="puces"></div>
           <div class="periode-champs">
@@ -176,7 +181,21 @@
           </div>
         </section>
 
-        <section class="carte carte-saisie">
+        <!-- Trames Répit et Trimestriel : le document se remplit dans un
+             parcours guidé, il n'y a pas de compte-rendu libre à dicter. -->
+        <section class="carte" id="bloc-guide" hidden>
+          <h2 class="carte-titre" id="guide-titre"></h2>
+          <p class="aide" id="guide-aide"></p>
+          <div class="saisie-barre">
+            <button type="button" id="ouvrir-parcours-btn" class="btn btn-primaire">
+              <svg class="ico"><use href="#ico-document"/></svg>
+              Commencer le bilan
+            </button>
+          </div>
+          <p id="guide-statut" class="statut" role="status" aria-live="polite"></p>
+        </section>
+
+        <section class="carte carte-saisie" id="bloc-redaction-libre">
           <div class="carte-entete">
             <h2 class="carte-titre">Compte-rendu de la période</h2>
             <span id="saisie-compteur" class="compteur"></span>
@@ -270,7 +289,53 @@
       </div>
     </section>
 
-    <!-- 3. Lecture et relecture d'un bilan. -->
+    <!-- 3. Parcours guidé : une étape par écran, sans défilement. -->
+    <section id="vue-parcours" class="vue vue-parcours" hidden>
+      <header class="parcours-entete">
+        <button type="button" id="parcours-retour" class="btn-lien">
+          <svg class="ico"><use href="#ico-retour"/></svg>
+          <span id="parcours-retour-libelle">Retour</span>
+        </button>
+        <div class="bilan-titres">
+          <h1 id="parcours-titre"></h1>
+          <p id="parcours-beneficiaire" class="fiche-meta"></p>
+        </div>
+      </header>
+
+      <div class="parcours-progression">
+        <div class="parcours-progression-tete">
+          <h2 id="parcours-etape-titre"></h2>
+          <span id="parcours-position" class="compteur"></span>
+        </div>
+        <span class="quota-jauge">
+          <span id="parcours-jauge-barre" class="quota-jauge-barre"></span>
+        </span>
+      </div>
+
+      <p id="parcours-intro" class="aide parcours-intro" hidden></p>
+
+      <div id="parcours-corps" class="parcours-corps"></div>
+
+      <footer class="parcours-pied">
+        <button type="button" id="parcours-precedent" class="btn btn-secondaire">
+          <svg class="ico"><use href="#ico-retour"/></svg>
+          Précédent
+        </button>
+        <span id="parcours-statut" class="statut" role="status" aria-live="polite"></span>
+        <button type="button" id="parcours-enregistrer" class="btn btn-secondaire">
+          Enregistrer
+        </button>
+        <button type="button" id="parcours-suivant" class="btn btn-primaire">
+          Étape suivante
+        </button>
+        <button type="button" id="parcours-terminer" class="btn btn-primaire" hidden>
+          <svg class="ico"><use href="#ico-check"/></svg>
+          Terminer et relire
+        </button>
+      </footer>
+    </section>
+
+    <!-- 4. Lecture et relecture d'un bilan. -->
     <section id="vue-bilan" class="vue" hidden>
       <header class="bilan-entete">
         <button type="button" id="bilan-retour" class="btn-lien">
@@ -287,6 +352,10 @@
             <svg class="ico"><use href="#ico-telecharger"/></svg>
             Exporter
           </a>
+          <button type="button" id="bilan-reprendre" class="btn btn-secondaire" hidden>
+            <svg class="ico"><use href="#ico-retour"/></svg>
+            Reprendre la saisie
+          </button>
           <button type="button" id="bilan-enregistrer" class="btn btn-secondaire">Enregistrer</button>
           <button type="button" id="bilan-valider" class="btn btn-primaire">
             <svg class="ico"><use href="#ico-check"/></svg>

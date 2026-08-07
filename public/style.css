@@ -1197,6 +1197,307 @@ details[open] > summary {
   border-radius: var(--r-lg);
 }
 
+/* --- Choix de la trame --- */
+
+.types-bilan {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.6rem;
+}
+
+.type-bilan {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.75rem 0.9rem;
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--r-md);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition), background-color var(--transition),
+    box-shadow var(--transition);
+}
+
+.type-bilan:hover {
+  border-color: var(--action-trait);
+  background: var(--action-tenue);
+}
+
+.type-bilan.actif {
+  background: var(--action-tenue);
+  border-color: var(--action);
+  box-shadow: inset 0 0 0 1px var(--action);
+}
+
+.type-bilan-nom {
+  font-weight: 600;
+}
+
+.type-bilan-detail {
+  font-size: var(--t-xs);
+  color: var(--texte-doux);
+  line-height: 1.4;
+}
+
+.type-bilan.actif .type-bilan-detail {
+  color: var(--action-survol);
+}
+
+/* ========================================================================
+   6 bis. Parcours guidé
+   ======================================================================== */
+
+/* Le parcours occupe exactement la hauteur disponible : l'étape courante tient
+   dans l'écran, en-tête et boutons restent visibles sans défilement. Le corps
+   ne défile qu'en dernier recours, sur un écran vraiment court. */
+.zone-travail-pleine {
+  display: flex;
+  overflow: hidden;
+  padding-bottom: 1.25rem;
+}
+
+.vue-parcours {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  max-width: 68rem;
+  width: 100%;
+}
+
+.parcours-entete {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: none;
+}
+
+.parcours-entete h1 {
+  font-size: var(--t-base);
+  font-weight: 600;
+  color: var(--texte-doux);
+}
+
+.parcours-progression {
+  flex: none;
+  margin: 0.5rem 0 0.4rem;
+}
+
+.parcours-progression-tete {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.35rem;
+}
+
+.parcours-progression-tete h2 {
+  font-size: var(--t-lg);
+  letter-spacing: -0.015em;
+}
+
+.parcours-intro {
+  flex: none;
+  margin-bottom: 0.5rem;
+  max-width: 78ch;
+}
+
+.parcours-corps {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.15rem 0.15rem 0.4rem;
+}
+
+/* Les grilles prennent la hauteur qu'il leur faut ; la zone de commentaire
+   absorbe ce qui reste. C'est ce qui permet à une étape « grille + commentaire »
+   de tenir dans l'écran quelle que soit la longueur de la grille, sans hauteur
+   de textarea figée à l'avance. */
+.parcours-corps > .zone {
+  flex: 1 1 auto;
+  min-height: 5.25rem;
+}
+
+.parcours-corps > .zone textarea {
+  flex: 1;
+  min-height: 3.5rem;
+}
+
+.parcours-pied {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: none;
+  flex-wrap: wrap;
+  padding-top: 0.6rem;
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--trait);
+}
+
+.parcours-pied .statut {
+  flex: 1;
+  min-width: 6rem;
+}
+
+.bloc {
+  padding: 0.6rem 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--trait);
+  border-radius: var(--r-md);
+}
+
+.bloc-titre {
+  margin-bottom: 0.45rem;
+  font-size: var(--t-sm);
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--texte-doux);
+}
+
+.grille-champs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.7rem;
+}
+
+/* --- Grilles de cotation --- */
+
+.cotation-cadre {
+  overflow-x: auto;
+}
+
+.cotation,
+.grille-tableau {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-sm);
+}
+
+.cotation th,
+.cotation td,
+.grille-tableau th,
+.grille-tableau td {
+  padding: 0.18rem 0.5rem;
+  border-bottom: 1px solid var(--trait);
+  text-align: center;
+  vertical-align: middle;
+}
+
+.cotation thead th,
+.grille-tableau thead th {
+  padding-bottom: 0.45rem;
+  font-size: var(--t-xs);
+  font-weight: 650;
+  color: var(--texte-doux);
+  white-space: nowrap;
+  border-bottom-color: var(--trait-fort);
+}
+
+.cotation tbody tr:nth-child(even),
+.grille-tableau tbody tr:nth-child(even) {
+  background: var(--fond);
+}
+
+.cotation tbody tr:hover {
+  background: var(--action-tenue);
+}
+
+/* Spécificité alignée sur celle de `.cotation th` : sans le sélecteur de
+   balise, la règle de cellule l'emporterait et recentrerait les libellés. */
+.cotation th.cotation-item,
+.grille-tableau th.grille-item {
+  text-align: left;
+  font-weight: 450;
+  line-height: 1.28;
+}
+
+.cotation-item {
+  width: 46%;
+}
+
+.cotation input[type="radio"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--action);
+  cursor: pointer;
+}
+
+.grille-tableau textarea,
+.grille-tableau select,
+.grille-tableau input {
+  font-size: var(--t-sm);
+  padding: 0.35rem 0.5rem;
+}
+
+.grille-tableau td {
+  text-align: left;
+}
+
+/* --- Zone de texte dictable --- */
+
+.zone {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.6rem 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--trait);
+  border-radius: var(--r-md);
+}
+
+.zone-libelle {
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--texte-doux);
+}
+
+.zone-barre {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.btn-menu {
+  padding: 0.3rem 0.6rem;
+  font-size: var(--t-sm);
+}
+
+.btn-menu.enregistre {
+  background: var(--alerte);
+  border-color: var(--alerte);
+  color: #fff;
+}
+
+.zone-etat {
+  font-size: var(--t-xs);
+  color: var(--texte-doux);
+  flex: 1;
+  min-width: 6rem;
+}
+
+.liste-saisie {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.liste-ligne {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.liste-lecture {
+  margin: 0.25rem 0 0;
+  padding-left: 1.15rem;
+}
+
 /* ========================================================================
    6. Relecture d'un bilan
    ======================================================================== */

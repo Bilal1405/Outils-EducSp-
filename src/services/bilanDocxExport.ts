@@ -10,6 +10,8 @@ import {
   WidthType,
 } from "docx";
 import type { Bilan } from "../schema/bilan.schema";
+import { MODELES, type TypeBilan } from "../schema/modelesBilan";
+import { elementsDepuisModele } from "./modeleDocxExport";
 
 /**
  * Module unique de conversion JSON → .docx (BRIEF_PROJET §7) : aucune
@@ -195,24 +197,46 @@ function buildPropositionTable(bilan: Bilan): (Paragraph | Table)[] {
   ];
 }
 
-export async function genererBilanDocx(bilan: Bilan): Promise<Buffer> {
-  const doc = new Document({
-    sections: [
-      {
-        children: [
-          ...buildEnTeteParagraphs(bilan),
-          ...buildObjectifsTable(bilan),
-          ...buildEvaluationComportementTable(bilan),
-          ...buildDonneesComplementaires(bilan),
-          ...buildEvaluationParDomaine(bilan),
-          ...buildAutresObservations(bilan),
-          ...buildPropositionTable(bilan),
-        ],
-      },
-    ],
-  });
+/**
+ * Produit le .docx correspondant à la trame du bilan.
+ *
+ * Aiguillage exhaustif : ajouter une trame sans son rendu devient une erreur
+ * de compilation, plutôt qu'un export silencieusement vide.
+ */
+export async function genererBilanDocx(
+  type: TypeBilan,
+  contenu: unknown
+): Promise<Buffer> {
+  let children;
 
-  return Packer.toBuffer(doc);
+  switch (type) {
+    case "bilan": {
+      const bilan = contenu as Bilan;
+      children = [
+        ...buildEnTeteParagraphs(bilan),
+        ...buildObjectifsTable(bilan),
+        ...buildEvaluationComportementTable(bilan),
+        ...buildDonneesComplementaires(bilan),
+        ...buildEvaluationParDomaine(bilan),
+        ...buildAutresObservations(bilan),
+        ...buildPropositionTable(bilan),
+      ];
+      break;
+    }
+    case "repit":
+    case "trimestriel":
+      children = elementsDepuisModele(
+        MODELES[type],
+        contenu as Record<string, unknown>
+      );
+      break;
+    default: {
+      const jamais: never = type;
+      throw new Error(`Export non géré pour le type de bilan : ${jamais}`);
+    }
+  }
+
+  return Packer.toBuffer(new Document({ sections: [{ children }] }));
 }
 
 const COMBINING_DIACRITICS = new RegExp("[̀-ͯ]", "g");
@@ -226,13 +250,20 @@ function slugifierPourNomFichier(texte: string): string {
     .replace(/^_+|_+$/g, "");
 }
 
-/** Nommage imposé (§7) : Bilan_trimestriel_<nom_patient>_<periode>.docx */
+const PREFIXE_FICHIER: Record<TypeBilan, string> = {
+  bilan: "Bilan",
+  repit: "Bilan_repit",
+  trimestriel: "Bilan_trimestriel",
+};
+
+/** Nommage imposé (§7) : <trame>_<nom_patient>_<periode>.docx */
 export function nomFichierBilanDocx(
+  type: TypeBilan,
   nomPatientComplet: string,
   periodeDebut: string,
   periodeFin: string
 ): string {
   const nom = slugifierPourNomFichier(nomPatientComplet);
   const periode = `${slugifierPourNomFichier(periodeDebut)}_${slugifierPourNomFichier(periodeFin)}`;
-  return `Bilan_trimestriel_${nom}_${periode}.docx`;
+  return `${PREFIXE_FICHIER[type]}_${nom}_${periode}.docx`;
 }
