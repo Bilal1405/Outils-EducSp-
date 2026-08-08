@@ -40,6 +40,11 @@ function resolveLlmProvider(): LlmProvider {
 
 export const config = {
   port: Number(process.env.PORT ?? 3000),
+  /**
+   * Décide notamment si le cookie de session exige HTTPS. En production ce
+   * doit être `production` — sinon le cookie voyagerait en clair.
+   */
+  env: process.env.NODE_ENV ?? "development",
   databaseUrl: required("DATABASE_URL"),
   llmProvider: resolveLlmProvider(),
   cerebras: {

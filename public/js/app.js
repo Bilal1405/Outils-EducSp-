@@ -18,9 +18,10 @@ import {
 } from "./ui.js";
 import {
   initReglages,
-  ouvrirReglages,
-  chargerEtablissements,
-  chargerUtilisateurs,
+  chargerEtablissement,
+  chargerEquipe,
+  estCoordinateur,
+  majBandeau,
 } from "./reglages.js";
 import {
   initBeneficiaires,
@@ -35,6 +36,8 @@ import {
 } from "./redaction.js";
 import { initBilan, ouvrirBilan } from "./bilan.js";
 import { initParcours, ouvrirParcours } from "./parcours.js";
+import { initPilotage, ouvrirJournal, ouvrirTableauDeBord } from "./pilotage.js";
+import { ouvrirPortail } from "./portail.js";
 
 // --- Vues et onglets ---
 
@@ -42,6 +45,7 @@ function montrerVue(nom) {
   $("vue-accueil").hidden = nom !== "accueil";
   $("vue-beneficiaire").hidden = nom !== "beneficiaire";
   $("vue-parcours").hidden = nom !== "parcours";
+  $("vue-pilotage").hidden = nom !== "pilotage";
   $("vue-bilan").hidden = nom !== "bilan";
   // Le parcours guidé gère sa propre hauteur : chaque étape doit tenir dans
   // l'écran, c'est lui qui décide de ce qui défile.
@@ -79,21 +83,12 @@ function initOnglets() {
 
 // --- Mise en route guidée ---
 
+/**
+ * L'établissement et le compte existent dès la connexion : il ne reste qu'un
+ * prérequis, le premier bénéficiaire.
+ */
 function majAccueil() {
-  const faites = {
-    etablissement: Boolean(etat.etablissementId),
-    educateur: Boolean(etat.auteurId),
-    beneficiaire: etat.beneficiaires.length > 0,
-  };
-
-  for (const [cle, faite] of Object.entries(faites)) {
-    const etape = document.querySelector(`[data-etape="${cle}"]`);
-    if (etape) {
-      etape.classList.toggle("faite", faite);
-    }
-  }
-
-  const pret = Object.values(faites).every(Boolean);
+  const pret = etat.beneficiaires.length > 0;
   $("accueil-demarrage").hidden = pret;
   $("accueil-pret").hidden = !pret;
 }
@@ -232,17 +227,13 @@ async function demarrer() {
   initRedaction();
   initBilan();
   initParcours();
+  initPilotage();
   initOnglets();
   initBarreLaterale();
   initRaccourcis();
 
-  sur("etablissement-change", async () => {
-    await chargerBeneficiaires();
-    majAccueil();
-  });
-
-  sur("auteur-change", majAccueil);
   sur("beneficiaires-charges", majAccueil);
+  sur("ouvrir-journal", ouvrirJournal);
 
   sur("beneficiaire-change", async (beneficiaire) => {
     arreterDicteeSiActive();
@@ -300,22 +291,44 @@ async function demarrer() {
     const trames = await api.modeles();
     etat.modeles = trames.modeles;
     etat.typesBilan = trames.types;
-    await chargerEtablissements();
-    await chargerUtilisateurs();
+    await chargerEtablissement();
+    await chargerEquipe();
     await chargerBeneficiaires();
   } catch (err) {
     signalerPanne(err);
     return;
   }
 
+  $("suivi-btn").hidden = !estCoordinateur();
+  $("suivi-btn").addEventListener("click", ouvrirTableauDeBord);
   majAccueil();
   montrerVue("accueil");
-
-  // Aucun établissement enregistré : le tiroir s'ouvre de lui-même sur l'étape
-  // qui bloque tout le reste.
-  if (!etat.etablissementId) {
-    ouvrirReglages("etablissement");
-  }
 }
 
-demarrer();
+/**
+ * Séquence de démarrage : la session d'abord, l'application ensuite. Rien de
+ * l'outil — ni la liste des bénéficiaires, ni les trames — n'est demandé au
+ * serveur avant d'être authentifié.
+ */
+async function amorcer() {
+  let etatAuth;
+  try {
+    etatAuth = await api.etatAuth();
+  } catch (err) {
+    signalerPanne(err);
+    return;
+  }
+
+  etat.utilisateur =
+    etatAuth.utilisateur || (await ouvrirPortail({ initialise: etatAuth.initialise }));
+
+  // L'application n'est révélée qu'une fois la session établie. La masquer
+  // seulement à l'écran ne suffirait pas : elle resterait dans l'ordre de
+  // tabulation et dans l'arbre d'accessibilité, sous l'écran de connexion.
+  $("entete").hidden = false;
+  $("app").hidden = false;
+  majBandeau();
+  await demarrer();
+}
+
+amorcer();

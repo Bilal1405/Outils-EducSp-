@@ -7,8 +7,8 @@
 import { api } from "./api.js";
 import { etat, emettre } from "./etat.js";
 import * as dictee from "./dictee.js";
-import { $, creer, notifier, statut, vider } from "./ui.js";
-import { ouvrirReglages, afficherQuota, rafraichirQuota } from "./reglages.js";
+import { $, creer, formatDate, notifier, statut, vider } from "./ui.js";
+import { afficherQuota, rafraichirQuota } from "./reglages.js";
 
 /**
  * Brouillons de saisie, conservés uniquement en mémoire.
@@ -216,16 +216,39 @@ function appliquerType() {
       "et peuvent être remis au propre par le moteur. Vous pouvez interrompre et reprendre à tout moment."
     : "";
   statut($("guide-statut"), "");
+  proposerReprise();
+}
+
+/**
+ * Reprise du bilan précédent.
+ *
+ * D'un trimestre à l'autre, une grille bouge peu : recoter soixante lignes
+ * identiques n'apporte rien. Mais une cotation reprise date d'une autre
+ * période — le parcours la signale comme telle tant qu'elle n'a pas été
+ * revue, et l'option est décochée par défaut. Repartir de zéro reste le
+ * comportement normal ; reprendre est un choix explicite.
+ */
+async function proposerReprise() {
+  const choix = $("reprise-choix");
+  choix.hidden = true;
+  $("reprise-case").checked = false;
+  if (etat.typeChoisi === "bilan" || !etat.beneficiaireId) return;
+
+  try {
+    const precedent = await api.bilanPrecedent(etat.beneficiaireId, etat.typeChoisi);
+    if (!precedent) return;
+    $("reprise-libelle").textContent =
+      `Repartir du bilan validé du ${formatDate(precedent.periode_fin)} ` +
+      "(les valeurs reprises seront signalées à relire)";
+    choix.hidden = false;
+  } catch {
+    // Pas de reprise proposée : on ouvre un bilan vierge, ce qui est le
+    // comportement par défaut de toute façon.
+  }
 }
 
 async function ouvrirBilanGuide() {
   const retour = $("guide-statut");
-
-  if (!etat.auteurId) {
-    statut(retour, "Aucun éducateur sélectionné : le bilan doit être signé.", "erreur");
-    ouvrirReglages("educateur");
-    return;
-  }
 
   const debut = $("periode-debut").value;
   const fin = $("periode-fin").value;
@@ -253,10 +276,11 @@ async function ouvrirBilanGuide() {
   statut(retour, "Ouverture du bilan…");
 
   try {
-    const bilan = await api.ouvrirBilanGuide(etat.beneficiaireId, etat.auteurId, {
+    const bilan = await api.ouvrirBilanGuide(etat.beneficiaireId, {
       type: etat.typeChoisi,
       periode_debut: debut,
       periode_fin: fin,
+      reprendre_precedent: $("reprise-case").checked,
     });
     if (bilan.quota) {
       afficherQuota(bilan.quota);
@@ -301,12 +325,6 @@ function arreterAttente() {
  */
 function verifierPrerequis() {
   const retour = $("redaction-statut");
-
-  if (!etat.auteurId) {
-    statut(retour, "Aucun éducateur sélectionné : le bilan doit être signé.", "erreur");
-    ouvrirReglages("educateur");
-    return null;
-  }
 
   const texte = $("saisie").value.trim();
   if (!texte) {
@@ -353,7 +371,7 @@ async function generer() {
   demarrerAttente();
 
   try {
-    const resultat = await api.genererBilan(etat.beneficiaireId, etat.auteurId, {
+    const resultat = await api.genererBilan(etat.beneficiaireId, {
       texte: donnees.texte,
       source,
       periode_debut: donnees.debut,

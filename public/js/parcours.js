@@ -25,10 +25,41 @@ function courant() {
   return etat.parcours;
 }
 
-function marquerModifie() {
-  if (!courant()) return;
-  courant().modifie = true;
+function marquerModifie(cleBloc) {
+  const parcours = courant();
+  if (!parcours) return;
+  parcours.modifie = true;
+  if (cleBloc) {
+    parcours.revus.add(cleBloc);
+  }
   majPied();
+}
+
+/**
+ * Un bloc repris d'un bilan antérieur et pas encore touché sur cette période.
+ * L'information est portée à l'écran plutôt que laissée implicite : une
+ * cotation d'il y a trois mois validée sans relecture serait une observation
+ * datée présentée comme actuelle.
+ */
+function estRepris(cleBloc) {
+  const parcours = courant();
+  return Boolean(parcours && parcours.reprisDe && !parcours.revus.has(cleBloc));
+}
+
+/** Titre de bloc, éventuellement accompagné de la marque de reprise. */
+function enTeteBloc(titre, cleBloc) {
+  const marque = marqueReprise(cleBloc);
+  if (!titre && !marque) return null;
+  return creer("div", { classe: "bloc-tete" }, [
+    titre ? creer("h3", { classe: "bloc-titre", texte: titre }) : null,
+    marque,
+  ]);
+}
+
+function marqueReprise(cleBloc) {
+  return estRepris(cleBloc)
+    ? creer("span", { classe: "marque-reprise", texte: "Repris — à vérifier" })
+    : null;
 }
 
 export function parcoursModifie() {
@@ -43,7 +74,7 @@ function zoneTexte(bloc, valeurInitiale, onChange) {
     sur: {
       input: (evenement) => {
         onChange(evenement.target.value);
-        marquerModifie();
+        marquerModifie(bloc.cle);
       },
     },
   });
@@ -54,7 +85,7 @@ function zoneTexte(bloc, valeurInitiale, onChange) {
   const appliquer = (texte) => {
     saisie.value = texte;
     onChange(texte);
-    marquerModifie();
+    marquerModifie(bloc.cle);
   };
 
   const boutonAnnuler = creer(
@@ -135,7 +166,10 @@ function zoneTexte(bloc, valeurInitiale, onChange) {
   });
 
   return creer("div", { classe: "zone" }, [
-    creer("label", { classe: "zone-libelle", texte: bloc.libelle }),
+    creer("div", { classe: "zone-tete" }, [
+      creer("label", { classe: "zone-libelle", texte: bloc.libelle }),
+      marqueReprise(bloc.cle),
+    ]),
     bloc.aide ? creer("p", { classe: "aide", texte: bloc.aide }) : null,
     saisie,
     creer("div", { classe: "zone-barre" }, [
@@ -147,7 +181,7 @@ function zoneTexte(bloc, valeurInitiale, onChange) {
   ]);
 }
 
-function champCourt(champ, valeur, onChange) {
+function champCourt(champ, valeur, onChange, cleBloc) {
   let saisie;
 
   if (champ.saisie === "choix" && champ.options) {
@@ -155,7 +189,7 @@ function champCourt(champ, valeur, onChange) {
       sur: {
         change: (evenement) => {
           onChange(evenement.target.value);
-          marquerModifie();
+          marquerModifie(cleBloc);
         },
       },
     });
@@ -169,7 +203,7 @@ function champCourt(champ, valeur, onChange) {
       sur: {
         input: (evenement) => {
           onChange(evenement.target.value);
-          marquerModifie();
+          marquerModifie(cleBloc);
         },
       },
     });
@@ -189,15 +223,20 @@ function champCourt(champ, valeur, onChange) {
 function rendreChamps(bloc, contenu) {
   const valeurs = contenu[bloc.cle] || {};
   return creer("section", { classe: "bloc" }, [
-    bloc.titre ? creer("h3", { classe: "bloc-titre", texte: bloc.titre }) : null,
+    enTeteBloc(bloc.titre, bloc.cle),
     creer(
       "div",
       { classe: "grille-champs" },
       bloc.champs.map((champ) =>
-        champCourt(champ, valeurs[champ.cle], (valeur) => {
-          valeurs[champ.cle] = valeur;
-          contenu[bloc.cle] = valeurs;
-        })
+        champCourt(
+          champ,
+          valeurs[champ.cle],
+          (valeur) => {
+            valeurs[champ.cle] = valeur;
+            contenu[bloc.cle] = valeurs;
+          },
+          bloc.cle
+        )
       )
     ),
   ]);
@@ -236,7 +275,7 @@ function rendreTableau(bloc, modele, contenu) {
         } else {
           valeurs[ligne.cle] = option;
         }
-        marquerModifie();
+        marquerModifie(bloc.cle);
       });
       return creer("td", {}, [bouton]);
     });
@@ -248,7 +287,7 @@ function rendreTableau(bloc, modele, contenu) {
   });
 
   return creer("section", { classe: "bloc" }, [
-    bloc.titre ? creer("h3", { classe: "bloc-titre", texte: bloc.titre }) : null,
+    enTeteBloc(bloc.titre, bloc.cle),
     creer("div", { classe: "cotation-cadre" }, [
       creer("table", { classe: "cotation" }, [
         creer("thead", {}, [enTete]),
@@ -277,7 +316,7 @@ function rendreListe(bloc, contenu) {
         sur: {
           input: (evenement) => {
             valeurs[index] = evenement.target.value;
-            marquerModifie();
+            marquerModifie(bloc.cle);
           },
         },
       });
@@ -293,7 +332,7 @@ function rendreListe(bloc, contenu) {
               sur: {
                 click: () => {
                   valeurs.splice(index, 1);
-                  marquerModifie();
+                  marquerModifie(bloc.cle);
                   redessiner();
                 },
               },
@@ -307,7 +346,7 @@ function rendreListe(bloc, contenu) {
   redessiner();
 
   return creer("section", { classe: "bloc" }, [
-    creer("h3", { classe: "bloc-titre", texte: bloc.libelle }),
+    enTeteBloc(bloc.libelle, bloc.cle),
     bloc.aide ? creer("p", { classe: "aide", texte: bloc.aide }) : null,
     conteneur,
     creer(
@@ -318,7 +357,7 @@ function rendreListe(bloc, contenu) {
         sur: {
           click: () => {
             valeurs.push("");
-            marquerModifie();
+            marquerModifie(bloc.cle);
             redessiner();
           },
         },
@@ -336,7 +375,7 @@ function celluleSaisie(colonne, valeur, onChange) {
       sur: {
         change: (evenement) => {
           onChange(evenement.target.value);
-          marquerModifie();
+          marquerModifie(bloc.cle);
         },
       },
     });
@@ -350,7 +389,7 @@ function celluleSaisie(colonne, valeur, onChange) {
       sur: {
         input: (evenement) => {
           onChange(evenement.target.value);
-          marquerModifie();
+          marquerModifie(bloc.cle);
         },
       },
     });
@@ -379,7 +418,7 @@ function rendreGrille(bloc, contenu) {
   });
 
   return creer("section", { classe: "bloc" }, [
-    bloc.titre ? creer("h3", { classe: "bloc-titre", texte: bloc.titre }) : null,
+    enTeteBloc(bloc.titre, bloc.cle),
     creer("div", { classe: "cotation-cadre" }, [
       creer("table", { classe: "grille-tableau" }, [
         creer("thead", {}, [
@@ -440,7 +479,7 @@ function rendreRepetable(bloc, contenu) {
                 sur: {
                   click: () => {
                     valeurs.splice(index, 1);
-                    marquerModifie();
+                    marquerModifie(bloc.cle);
                     redessiner();
                   },
                 },
@@ -455,7 +494,7 @@ function rendreRepetable(bloc, contenu) {
   redessiner();
 
   return creer("section", { classe: "bloc" }, [
-    bloc.titre ? creer("h3", { classe: "bloc-titre", texte: bloc.titre }) : null,
+    enTeteBloc(bloc.titre, bloc.cle),
     vide,
     cadre,
     creer(
@@ -468,7 +507,7 @@ function rendreRepetable(bloc, contenu) {
             valeurs.push(
               Object.fromEntries(bloc.colonnes.map((colonne) => [colonne.cle, ""]))
             );
-            marquerModifie();
+            marquerModifie(bloc.cle);
             redessiner();
           },
         },
@@ -606,6 +645,10 @@ export function ouvrirParcours(bilan) {
     contenu: structuredClone(bilan.contenu),
     etape: 0,
     modifie: false,
+    /** Bilan dont le contenu a été repris, le cas échéant. */
+    reprisDe: bilan.repris_de || null,
+    /** Blocs déjà revus depuis la reprise, pour ne plus les signaler. */
+    revus: new Set(),
   };
 
   const beneficiaire = etat.beneficiaireCourant;

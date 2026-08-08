@@ -18,12 +18,13 @@ export const etat = {
   /** Parcours guidé en cours : bilan ouvert, étape affichée, brouillon local. */
   parcours: null,
 
-  etablissements: [],
-  etablissementId: null,
+  /** Utilisateur connecté et son établissement, établis par la session. */
+  utilisateur: null,
+  etablissement: null,
   quota: null,
 
+  /** Membres de l'équipe, visibles du coordinateur seulement. */
   utilisateurs: [],
-  auteurId: null,
 
   beneficiaires: [],
   beneficiaireId: null,
@@ -52,37 +53,7 @@ export function emettre(nom, charge) {
   }
 }
 
-// --- Préférences locales ---
-//
-// Établissement et éducateur courants sont mémorisés d'une session à l'autre :
-// ils ne changent quasiment jamais pour un même poste.
-
-const CLES = { etablissement: "etablissementId", auteur: "auteurId" };
-
-export function lirePreference(cle) {
-  try {
-    return localStorage.getItem(CLES[cle]);
-  } catch {
-    return null;
-  }
-}
-
-export function ecrirePreference(cle, valeur) {
-  try {
-    if (valeur) {
-      localStorage.setItem(CLES[cle], valeur);
-    } else {
-      localStorage.removeItem(CLES[cle]);
-    }
-  } catch {
-    /* Navigation privée, stockage refusé : sans effet, jamais bloquant. */
-  }
-}
-
+/** L'établissement de travail est celui de la session, jamais un choix. */
 export function etablissementCourant() {
-  return etat.etablissements.find((e) => e.id === etat.etablissementId) || null;
-}
-
-export function auteurCourant() {
-  return etat.utilisateurs.find((u) => u.id === etat.auteurId) || null;
+  return etat.etablissement;
 }

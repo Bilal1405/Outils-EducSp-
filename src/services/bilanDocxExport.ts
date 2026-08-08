@@ -12,6 +12,44 @@ import {
 import type { Bilan } from "../schema/bilan.schema";
 import { MODELES, type TypeBilan } from "../schema/modelesBilan";
 import { elementsDepuisModele } from "./modeleDocxExport";
+import type { Etablissement } from "../repositories/etablissementRepository";
+
+/**
+ * En-tête de la structure émettrice.
+ *
+ * Un bilan est transmis à une famille, à une MDPH, à un partenaire : il doit
+ * porter l'identité de l'établissement qui l'émet, sinon le fichier produit
+ * n'est pas utilisable tel quel et se retrouve recopié à la main dans un autre
+ * document. Les coordonnées absentes ne laissent pas de ligne vide.
+ */
+function enTeteEtablissement(etablissement?: Etablissement | null): Paragraph[] {
+  if (!etablissement) {
+    return [];
+  }
+
+  const coordonnees = [
+    etablissement.adresse,
+    etablissement.telephone,
+    etablissement.email,
+  ]
+    .map((valeur) => valeur.trim())
+    .filter(Boolean)
+    .join(" · ");
+
+  return [
+    new Paragraph({
+      children: [new TextRun({ text: etablissement.nom, bold: true, size: 26 })],
+    }),
+    ...(coordonnees
+      ? [
+          new Paragraph({
+            children: [new TextRun({ text: coordonnees, size: 18, color: "555555" })],
+          }),
+        ]
+      : []),
+    new Paragraph({ text: "" }),
+  ];
+}
 
 /**
  * Module unique de conversion JSON → .docx (BRIEF_PROJET §7) : aucune
@@ -205,7 +243,8 @@ function buildPropositionTable(bilan: Bilan): (Paragraph | Table)[] {
  */
 export async function genererBilanDocx(
   type: TypeBilan,
-  contenu: unknown
+  contenu: unknown,
+  etablissement?: Etablissement | null
 ): Promise<Buffer> {
   let children;
 
@@ -236,7 +275,11 @@ export async function genererBilanDocx(
     }
   }
 
-  return Packer.toBuffer(new Document({ sections: [{ children }] }));
+  return Packer.toBuffer(
+    new Document({
+      sections: [{ children: [...enTeteEtablissement(etablissement), ...children] }],
+    })
+  );
 }
 
 const COMBINING_DIACRITICS = new RegExp("[̀-ͯ]", "g");

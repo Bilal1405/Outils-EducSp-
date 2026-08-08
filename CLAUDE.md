@@ -62,9 +62,18 @@ le nombre de lignes de grille par étape. Scinder l'étape et remesurer si dépa
 > navigateur, le corps de requête ne porte plus qu'un `texte` et un marqueur
 > `source`.
 
-Reste : authentification réelle (`x-user-id` est un placeholder non vérifié),
-cloisonnement par établissement + tests, audit_logs, chiffrement
-`informations_sante`, Stripe, gabarits RGPD, durcissement déploiement.
+Sécurité (migrations 010–012) : sessions serveur opaques (cookie httpOnly,
+scrypt pour les mots de passe), rôles educateur/coordinateur/admin, garde CSRF
+par en-tête, cloisonnement imposé côté serveur — l'établissement vient
+**toujours** de la session, jamais de la requête. `test/securite.test.ts` borde
+cette frontière : ne pas ajouter de route sans l'y couvrir.
+
+Journal d'audit (`audit_logs`) : lectures comprises. Effacement d'un
+bénéficiaire en cascade, la trace survit à l'effacement.
+
+Reste : transfert des comptes-rendus vers Cerebras (États-Unis) — non traité à
+la demande explicite de l'utilisateur ; chiffrement de `contenu` au repos ;
+Stripe ; gabarits RGPD.
 
 Manque aussi une date de validation en base : `bilans` ne garde pas l'instant
 du passage en « validé ». L'UI ne l'affiche donc pas — ne pas écrire

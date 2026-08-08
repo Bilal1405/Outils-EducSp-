@@ -13,33 +13,33 @@ export interface Patient extends PatientSummary {
 }
 
 /**
- * Liste des patients, optionnellement filtrée par établissement
- * (cloisonnement, BRIEF_PROJET §8). Le filtrage n'est pas encore imposé
- * par une couche d'authentification réelle (Keycloak À ARBITRER) : le
- * paramètre reste optionnel pour cette itération, prêt à devenir
- * obligatoire une fois l'identité de l'établissement dérivée de la session.
+ * Toutes les lectures et écritures portent l'établissement en paramètre
+ * obligatoire, jamais optionnel.
+ *
+ * Il venait auparavant de la requête HTTP et ne servait qu'à filtrer un
+ * affichage ; il vient désormais de la session et conditionne l'accès. Le
+ * rendre obligatoire dans la signature fait qu'un appel non cloisonné ne
+ * compile pas, plutôt que de dépendre de la vigilance de l'appelant.
  */
 export async function listPatients(
-  etablissementId?: string
+  etablissementId: string
 ): Promise<PatientSummary[]> {
-  if (etablissementId) {
-    const { rows } = await pool.query<PatientSummary>(
-      `SELECT id, nom, prenom, date_naissance FROM patients
-       WHERE etablissement_id = $1 ORDER BY nom, prenom`,
-      [etablissementId]
-    );
-    return rows;
-  }
   const { rows } = await pool.query<PatientSummary>(
-    `SELECT id, nom, prenom, date_naissance FROM patients ORDER BY nom, prenom`
+    `SELECT id, nom, prenom, date_naissance FROM patients
+     WHERE etablissement_id = $1 ORDER BY nom, prenom`,
+    [etablissementId]
   );
   return rows;
 }
 
-export async function getPatientById(id: string): Promise<Patient | null> {
+export async function getPatientById(
+  id: string,
+  etablissementId: string
+): Promise<Patient | null> {
   const { rows } = await pool.query<Patient>(
-    `SELECT id, nom, prenom, date_naissance, etablissement_id FROM patients WHERE id = $1`,
-    [id]
+    `SELECT id, nom, prenom, date_naissance, etablissement_id
+     FROM patients WHERE id = $1 AND etablissement_id = $2`,
+    [id, etablissementId]
   );
   return rows[0] ?? null;
 }
@@ -66,13 +66,50 @@ export interface UpdatePatientParams {
 
 export async function updatePatient(
   id: string,
+  etablissementId: string,
   params: UpdatePatientParams
 ): Promise<Patient | null> {
   const { rows } = await pool.query<Patient>(
     `UPDATE patients SET nom = $1, prenom = $2, date_naissance = $3
-     WHERE id = $4
+     WHERE id = $4 AND etablissement_id = $5
      RETURNING id, nom, prenom, date_naissance, etablissement_id`,
-    [params.nom, params.prenom, params.dateNaissance ?? null, id]
+    [params.nom, params.prenom, params.dateNaissance ?? null, id, etablissementId]
   );
   return rows[0] ?? null;
+}
+
+/**
+ * Effacement définitif d'un bénéficiaire et de ses bilans.
+ *
+ * Les bilans partent par la cascade posée en migration 011. On les compte
+ * avant de supprimer : le journal d'audit doit pouvoir attester de l'étendue
+ * réelle de l'effacement, pas seulement du fait qu'il a eu lieu.
+ */
+export async function supprimerPatient(
+  id: string,
+  etablissementId: string
+): Promise<number> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const { rows } = await client.query<{ total: string }>(
+      `SELECT count(*)::text AS total FROM bilans WHERE patient_id = $1`,
+      [id]
+    );
+    const bilans = Number(rows[0].total);
+
+    await client.query(`DELETE FROM patients WHERE id = $1 AND etablissement_id = $2`, [
+      id,
+      etablissementId,
+    ]);
+
+    await client.query("COMMIT");
+    return bilans;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }

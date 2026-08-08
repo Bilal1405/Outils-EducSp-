@@ -1,24 +1,26 @@
 /**
- * Établissement et éducateur : sélection, création, quota.
+ * Compte, établissement, équipe.
  *
- * Ces deux réglages conditionnent tout le reste (les bénéficiaires appartiennent
- * à un établissement, les bilans sont signés par un éducateur) mais ne changent
- * presque jamais. Ils vivent donc dans un tiroir, pas dans le flux de travail —
- * seule leur synthèse reste affichée en permanence, en tête de page.
+ * L'identité ne se choisit plus dans une liste déroulante : elle vient de la
+ * session. Ce tiroir ne sert donc plus à *décider* qui l'on est, mais à
+ * consulter son compte et — pour un coordinateur — à administrer la structure.
  */
 import { api } from "./api.js";
-import {
-  etat,
-  emettre,
-  ecrirePreference,
-  lirePreference,
-  etablissementCourant,
-  auteurCourant,
-} from "./etat.js";
-import { $, creer, vider, notifier, statut, initiales } from "./ui.js";
+import { etat, emettre } from "./etat.js";
+import { $, creer, notifier, statut, initiales, vider } from "./ui.js";
 
 /** En dessous de ce reste, le quota passe en alerte visuelle. */
 const SEUIL_QUOTA_BAS = 0.2;
+
+const LIBELLES_ROLE = {
+  educateur: "Éducateur",
+  coordinateur: "Coordinateur",
+  admin: "Administrateur",
+};
+
+export function estCoordinateur() {
+  return etat.utilisateur && etat.utilisateur.role !== "educateur";
+}
 
 export function ouvrirReglages(section) {
   const tiroir = $("reglages");
@@ -26,33 +28,42 @@ export function ouvrirReglages(section) {
 
   if (!section) return;
   const cible = tiroir.querySelector(`[data-section="${section}"]`);
-  if (!cible) return;
+  if (!cible || cible.hidden) return;
   cible.classList.remove("surlignee");
   // Relance de l'animation : sans ce cycle, un second appel ne rejoue rien.
   void cible.offsetWidth;
   cible.classList.add("surlignee");
-  const details = cible.querySelector("details");
-  if (details && !cible.querySelector("select").value) {
-    details.open = true;
-  }
   cible.scrollIntoView({ block: "nearest" });
 }
 
 // --- Bandeau d'identité ---
 
-function majBandeau() {
-  const etablissement = etablissementCourant();
-  const auteur = auteurCourant();
+export function majBandeau() {
+  const utilisateur = etat.utilisateur;
+  const etablissement = etat.etablissement;
 
-  $("identite-nom").textContent = auteur
-    ? `${auteur.prenom} ${auteur.nom}`
-    : "Éducateur non défini";
-  $("identite-etablissement").textContent = etablissement
-    ? etablissement.nom
-    : "Aucun établissement";
-  $("identite-initiales").textContent = auteur
-    ? initiales(auteur.prenom, auteur.nom)
+  $("identite-nom").textContent = utilisateur
+    ? `${utilisateur.prenom} ${utilisateur.nom}`
+    : "";
+  $("identite-etablissement").textContent = etablissement ? etablissement.nom : "";
+  $("identite-initiales").textContent = utilisateur
+    ? initiales(utilisateur.prenom, utilisateur.nom)
     : "–";
+
+  $("compte-identite").textContent = utilisateur
+    ? `${utilisateur.prenom} ${utilisateur.nom} — ${utilisateur.email}`
+    : "";
+  $("compte-role").textContent = utilisateur
+    ? `${LIBELLES_ROLE[utilisateur.role]} · ${etablissement ? etablissement.nom : ""}`
+    : "";
+
+  const coordinateur = estCoordinateur();
+  for (const section of ["etablissement", "equipe", "journal"]) {
+    $("reglages").querySelector(`[data-section="${section}"]`).hidden = !coordinateur;
+  }
+  $("reglages-pied").textContent = coordinateur
+    ? "Vos actions et celles de votre équipe sont journalisées."
+    : "Vos actions sont journalisées : consultation, modification et export des bilans.";
 }
 
 /**
@@ -84,119 +95,119 @@ export function afficherQuota(quota) {
 
   $("quota-detail").textContent =
     restant === 0
-      ? `Quota mensuel atteint : ${quota.bilans_generes} bilan(s) générés sur ${total}. Aucune génération n'est possible avant le mois prochain.`
-      : `${quota.bilans_generes} bilan(s) générés ce mois-ci sur ${total} autorisés.`;
+      ? `Quota mensuel atteint : ${quota.bilans_generes} bilan(s) ce mois-ci sur ${total}. Aucun nouveau bilan avant le mois prochain.`
+      : `${quota.bilans_generes} bilan(s) ouverts ce mois-ci sur ${total} autorisés.`;
 }
 
 export async function rafraichirQuota() {
-  if (!etat.etablissementId) {
-    afficherQuota(null);
-    return;
-  }
   try {
-    afficherQuota(await api.quota(etat.etablissementId));
+    afficherQuota(await api.quota());
   } catch {
     // Un quota indisponible ne doit pas empêcher de travailler : le serveur
-    // le revérifie de toute façon avant chaque génération.
+    // le revérifie de toute façon avant chaque bilan.
     afficherQuota(null);
   }
 }
 
-// --- Listes déroulantes ---
+export async function chargerEtablissement() {
+  etat.etablissement = await api.etablissement();
 
-function remplirSelect(select, elements, libelle, vide) {
-  vider(select);
-  if (elements.length === 0) {
-    select.append(creer("option", { texte: vide, attrs: { value: "" } }));
-    select.disabled = true;
-    return;
-  }
-  select.disabled = false;
-  for (const element of elements) {
-    select.append(
-      creer("option", { texte: libelle(element), attrs: { value: element.id } })
-    );
-  }
-}
-
-export async function chargerEtablissements(selectionner) {
-  etat.etablissements = await api.listerEtablissements();
-
-  const souhaite =
-    selectionner || etat.etablissementId || lirePreference("etablissement");
-  const existe = etat.etablissements.some((e) => e.id === souhaite);
-  etat.etablissementId = existe
-    ? souhaite
-    : etat.etablissements[0]?.id || null;
-
-  remplirSelect(
-    $("etablissement-select"),
-    etat.etablissements,
-    (e) => e.nom,
-    "Aucun établissement enregistré"
-  );
-  $("etablissement-select").value = etat.etablissementId || "";
-  ecrirePreference("etablissement", etat.etablissementId);
+  $("etab-nom").value = etat.etablissement.nom || "";
+  $("etab-adresse").value = etat.etablissement.adresse || "";
+  $("etab-telephone").value = etat.etablissement.telephone || "";
+  $("etab-email").value = etat.etablissement.email || "";
+  $("etab-quota").value = etat.etablissement.quota_mensuel_bilans || "";
 
   majBandeau();
   await rafraichirQuota();
 }
 
-export async function chargerUtilisateurs(selectionner) {
+// --- Équipe ---
+
+export async function chargerEquipe() {
+  if (!estCoordinateur()) return;
+
   etat.utilisateurs = await api.listerUtilisateurs();
+  const liste = $("liste-equipe");
+  vider(liste);
 
-  const souhaite = selectionner || etat.auteurId || lirePreference("auteur");
-  const existe = etat.utilisateurs.some((u) => u.id === souhaite);
-  etat.auteurId = existe ? souhaite : etat.utilisateurs[0]?.id || null;
-
-  remplirSelect(
-    $("auteur-select"),
-    etat.utilisateurs,
-    (u) => `${u.prenom} ${u.nom}`,
-    "Aucun éducateur enregistré"
-  );
-  $("auteur-select").value = etat.auteurId || "";
-  ecrirePreference("auteur", etat.auteurId);
-
-  majBandeau();
+  for (const membre of etat.utilisateurs) {
+    const soi = membre.id === etat.utilisateur.id;
+    liste.append(
+      creer("li", { classe: "equipe-ligne" }, [
+        creer("span", { classe: "equipe-textes" }, [
+          creer("span", {
+            classe: "equipe-nom",
+            texte: `${membre.prenom} ${membre.nom}${soi ? " (vous)" : ""}`,
+          }),
+          creer("span", {
+            classe: "equipe-meta",
+            texte: `${LIBELLES_ROLE[membre.role]} · ${membre.email}`,
+          }),
+        ]),
+        soi
+          ? null
+          : creer(
+              "button",
+              {
+                classe: "btn btn-secondaire btn-menu btn-danger",
+                attrs: { type: "button" },
+                sur: { click: () => desactiver(membre) },
+              },
+              [document.createTextNode("Désactiver")]
+            ),
+      ])
+    );
+  }
 }
 
-// --- Création ---
+async function desactiver(membre) {
+  const sur = window.confirm(
+    `Désactiver le compte de ${membre.prenom} ${membre.nom} ?\n\n` +
+      "La personne ne pourra plus se connecter et ses sessions en cours seront " +
+      "fermées immédiatement. Les bilans qu'elle a rédigés restent intacts, à son nom."
+  );
+  if (!sur) return;
 
-async function creerEtablissement() {
-  const bouton = $("etablissement-creer");
-  const retour = $("etablissement-statut");
-  const nom = $("etablissement-nom").value.trim();
-  const quotaBrut = $("etablissement-quota").value.trim();
-
-  if (!nom) {
-    statut(retour, "Indiquez le nom de l'établissement.", "erreur");
-    $("etablissement-nom").focus();
-    return;
+  try {
+    await api.desactiverUtilisateur(membre.id);
+    notifier(`Compte de ${membre.prenom} ${membre.nom} désactivé.`, "ok");
+    await chargerEquipe();
+  } catch (err) {
+    notifier(err.message, "erreur");
   }
+}
 
-  const corps = { nom };
-  if (quotaBrut) {
-    const quota = Number(quotaBrut);
-    if (!Number.isInteger(quota) || quota < 1) {
-      statut(retour, "Le quota doit être un nombre entier d'au moins 1.", "erreur");
-      $("etablissement-quota").focus();
-      return;
-    }
-    corps.quota_mensuel_bilans = quota;
+async function creerCompte() {
+  const bouton = $("auteur-creer");
+  const retour = $("auteur-statut");
+  const prenom = $("auteur-prenom").value.trim();
+  const nom = $("auteur-nom").value.trim();
+  const email = $("auteur-email").value.trim();
+  const motDePasse = $("auteur-mot-de-passe").value;
+
+  if (!prenom || !nom || !email || !motDePasse) {
+    statut(retour, "Prénom, nom, adresse et mot de passe sont requis.", "erreur");
+    return;
   }
 
   bouton.disabled = true;
   statut(retour, "Création en cours…");
   try {
-    const cree = await api.creerEtablissement(corps);
-    await chargerEtablissements(cree.id);
-    $("etablissement-nom").value = "";
-    $("etablissement-quota").value = "";
+    await api.creerUtilisateur({
+      nom,
+      prenom,
+      email,
+      mot_de_passe: motDePasse,
+      role: $("auteur-role").value,
+    });
+    for (const champ of ["auteur-prenom", "auteur-nom", "auteur-email", "auteur-mot-de-passe"]) {
+      $(champ).value = "";
+    }
     statut(retour, "");
-    $("etablissement-ajout").open = false;
-    notifier(`Établissement « ${nom} » ajouté.`, "ok");
-    emettre("etablissement-change");
+    $("educateur-ajout").open = false;
+    notifier(`${prenom} ${nom} peut désormais se connecter.`, "ok");
+    await chargerEquipe();
   } catch (err) {
     statut(retour, err.message, "erreur");
   } finally {
@@ -204,33 +215,69 @@ async function creerEtablissement() {
   }
 }
 
-async function creerUtilisateur() {
-  const bouton = $("auteur-creer");
-  const retour = $("auteur-statut");
-  const prenom = $("auteur-prenom").value.trim();
-  const nom = $("auteur-nom").value.trim();
-  const email = $("auteur-email").value.trim();
+// --- Établissement ---
 
-  if (!prenom || !nom || !email) {
-    statut(retour, "Prénom, nom et adresse électronique sont requis.", "erreur");
+async function enregistrerEtablissement() {
+  const bouton = $("etab-enregistrer");
+  const retour = $("etab-statut");
+  const quotaBrut = $("etab-quota").value.trim();
+
+  const corps = {
+    nom: $("etab-nom").value.trim(),
+    adresse: $("etab-adresse").value.trim(),
+    telephone: $("etab-telephone").value.trim(),
+    email: $("etab-email").value.trim(),
+  };
+  if (!corps.nom) {
+    statut(retour, "Le nom de l'établissement est requis.", "erreur");
+    return;
+  }
+  if (quotaBrut) {
+    const quota = Number(quotaBrut);
+    if (!Number.isInteger(quota) || quota < 1) {
+      statut(retour, "Le quota doit être un nombre entier d'au moins 1.", "erreur");
+      return;
+    }
+    corps.quota_mensuel_bilans = quota;
+  }
+
+  bouton.disabled = true;
+  statut(retour, "Enregistrement…");
+  try {
+    etat.etablissement = await api.majEtablissement(corps);
+    statut(retour, "");
+    notifier("Établissement mis à jour.", "ok");
+    majBandeau();
+    await rafraichirQuota();
+  } catch (err) {
+    statut(retour, err.message, "erreur");
+  } finally {
+    bouton.disabled = false;
+  }
+}
+
+// --- Mot de passe ---
+
+async function changerMotDePasse() {
+  const bouton = $("mdp-valider");
+  const retour = $("mdp-statut");
+  const actuel = $("mdp-actuel").value;
+  const nouveau = $("mdp-nouveau").value;
+
+  if (!actuel || !nouveau) {
+    statut(retour, "Renseignez les deux champs.", "erreur");
     return;
   }
 
   bouton.disabled = true;
-  statut(retour, "Création en cours…");
+  statut(retour, "Changement en cours…");
   try {
-    const cree = await api.creerUtilisateur({ nom, prenom, email });
-    await chargerUtilisateurs(cree.id);
-    $("auteur-prenom").value = "";
-    $("auteur-nom").value = "";
-    $("auteur-email").value = "";
-    statut(retour, "");
-    $("educateur-ajout").open = false;
-    notifier(`${prenom} ${nom} ajouté.`, "ok");
-    emettre("auteur-change");
+    await api.changerMotDePasse(actuel, nouveau);
+    // Le serveur a fermé toutes les sessions, y compris celle-ci : il n'y a
+    // plus rien à afficher, on repart de l'écran de connexion.
+    window.location.reload();
   } catch (err) {
     statut(retour, err.message, "erreur");
-  } finally {
     bouton.disabled = false;
   }
 }
@@ -239,45 +286,27 @@ export function initReglages() {
   $("reglages-btn").addEventListener("click", () => ouvrirReglages());
   $("reglages-fermer").addEventListener("click", () => $("reglages").close());
 
-  // Clic sur le fond du tiroir : ferme, comme le ferait Échap.
   $("reglages").addEventListener("click", (evenement) => {
     if (evenement.target === $("reglages")) {
       $("reglages").close();
     }
   });
 
-  $("etablissement-select").addEventListener("change", async (evenement) => {
-    etat.etablissementId = evenement.target.value || null;
-    ecrirePreference("etablissement", etat.etablissementId);
-    majBandeau();
-    await rafraichirQuota();
-    emettre("etablissement-change");
-  });
-
-  $("auteur-select").addEventListener("change", (evenement) => {
-    etat.auteurId = evenement.target.value || null;
-    ecrirePreference("auteur", etat.auteurId);
-    majBandeau();
-    emettre("auteur-change");
-  });
-
-  $("etablissement-creer").addEventListener("click", creerEtablissement);
-  $("auteur-creer").addEventListener("click", creerUtilisateur);
-
-  // Entrée dans un champ du tiroir vaut validation du formulaire concerné.
-  for (const [champs, action] of [
-    [["etablissement-nom", "etablissement-quota"], creerEtablissement],
-    [["auteur-prenom", "auteur-nom", "auteur-email"], creerUtilisateur],
-  ]) {
-    for (const identifiant of champs) {
-      $(identifiant).addEventListener("keydown", (evenement) => {
-        if (evenement.key === "Enter") {
-          evenement.preventDefault();
-          action();
-        }
-      });
+  $("deconnexion-btn").addEventListener("click", async () => {
+    try {
+      await api.deconnexion();
+    } finally {
+      window.location.reload();
     }
-  }
+  });
+
+  $("mdp-valider").addEventListener("click", changerMotDePasse);
+  $("etab-enregistrer").addEventListener("click", enregistrerEtablissement);
+  $("auteur-creer").addEventListener("click", creerCompte);
+  $("journal-btn").addEventListener("click", () => {
+    $("reglages").close();
+    emettre("ouvrir-journal");
+  });
 
   for (const bouton of document.querySelectorAll("[data-ouvrir-reglages]")) {
     bouton.addEventListener("click", () =>

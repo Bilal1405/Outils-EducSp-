@@ -40,7 +40,78 @@
   <span id="app-alerte-texte"></span>
 </div>
 
-<header class="entete">
+<!-- Écran d'accueil non authentifié. Il précède tout le reste : rien de
+     l'application n'est chargé tant que la session n'est pas établie. -->
+<div id="portail" class="portail" hidden>
+  <div class="portail-carte">
+    <div class="portail-marque">
+      <span class="marque-pastille"><svg class="ico"><use href="#ico-document"/></svg></span>
+      <span class="marque-nom">Bilans éducatifs</span>
+    </div>
+
+    <form id="form-connexion" class="formulaire" hidden>
+      <h1>Connexion</h1>
+      <label class="champ">
+        <span class="champ-label">Adresse électronique</span>
+        <input type="email" id="connexion-email" autocomplete="username" required />
+      </label>
+      <label class="champ">
+        <span class="champ-label">Mot de passe</span>
+        <input type="password" id="connexion-mot-de-passe" autocomplete="current-password" required />
+      </label>
+      <button type="submit" id="connexion-valider" class="btn btn-primaire btn-bloc">
+        Se connecter
+      </button>
+      <p id="connexion-statut" class="statut" role="status" aria-live="polite"></p>
+    </form>
+
+    <form id="form-initialisation" class="formulaire" hidden>
+      <h1>Mise en service</h1>
+      <p class="aide">
+        Aucun compte n'existe encore. Créez l'établissement et le premier
+        administrateur. Cette page ne sera plus accessible ensuite.
+      </p>
+      <label class="champ">
+        <span class="champ-label">Nom de l'établissement</span>
+        <input type="text" id="init-etablissement" required autocomplete="off" />
+      </label>
+      <label class="champ">
+        <span class="champ-label">Quota mensuel de bilans</span>
+        <input type="number" id="init-quota" min="1" step="1" placeholder="50" />
+      </label>
+      <div class="grille-deux">
+        <label class="champ">
+          <span class="champ-label">Prénom</span>
+          <input type="text" id="init-prenom" required autocomplete="off" />
+        </label>
+        <label class="champ">
+          <span class="champ-label">Nom</span>
+          <input type="text" id="init-nom" required autocomplete="off" />
+        </label>
+      </div>
+      <label class="champ">
+        <span class="champ-label">Adresse électronique</span>
+        <input type="email" id="init-email" required autocomplete="off" />
+      </label>
+      <label class="champ">
+        <span class="champ-label">Mot de passe</span>
+        <input type="password" id="init-mot-de-passe" required autocomplete="new-password" />
+        <span class="aide">Au moins 12 caractères. Privilégiez une phrase longue.</span>
+      </label>
+      <button type="submit" id="init-valider" class="btn btn-primaire btn-bloc">
+        Créer et se connecter
+      </button>
+      <p id="init-statut" class="statut" role="status" aria-live="polite"></p>
+    </form>
+
+    <p class="portail-mention">
+      Cet outil traite des données de santé. Ne partagez pas votre mot de passe
+      et verrouillez votre poste en le quittant.
+    </p>
+  </div>
+</div>
+
+<header class="entete" id="entete" hidden>
   <button type="button" id="menu-btn" class="btn-icone entete-menu" aria-label="Afficher la liste des bénéficiaires" aria-expanded="false">
     <svg class="ico"><use href="#ico-menu"/></svg>
   </button>
@@ -67,7 +138,7 @@
   </div>
 </header>
 
-<div id="app">
+<div id="app" hidden>
   <!-- Colonne de navigation : uniquement les bénéficiaires. Tout ce qui
        relève de la configuration a migré dans le panneau de réglages. -->
   <aside id="barre-laterale" class="barre-laterale">
@@ -79,6 +150,10 @@
       <button type="button" id="nouveau-beneficiaire-btn" class="btn btn-primaire btn-bloc" data-nouveau-beneficiaire>
         <svg class="ico"><use href="#ico-plus"/></svg>
         Nouveau bénéficiaire
+      </button>
+      <button type="button" id="suivi-btn" class="btn btn-secondaire btn-bloc" hidden>
+        <svg class="ico"><use href="#ico-document"/></svg>
+        Suivi des bilans
       </button>
     </div>
     <nav id="liste-beneficiaires" class="liste-beneficiaires" aria-label="Bénéficiaires"></nav>
@@ -186,6 +261,10 @@
         <section class="carte" id="bloc-guide" hidden>
           <h2 class="carte-titre" id="guide-titre"></h2>
           <p class="aide" id="guide-aide"></p>
+          <label class="case" id="reprise-choix" hidden>
+            <input type="checkbox" id="reprise-case" />
+            <span id="reprise-libelle"></span>
+          </label>
           <div class="saisie-barre">
             <button type="button" id="ouvrir-parcours-btn" class="btn btn-primaire">
               <svg class="ico"><use href="#ico-document"/></svg>
@@ -286,7 +365,36 @@
             </div>
           </form>
         </section>
+
+        <section class="carte" id="carte-effacement" hidden>
+          <h2 class="carte-titre">Effacement</h2>
+          <p class="aide">
+            Supprime définitivement ce bénéficiaire et tous ses bilans, y compris
+            ceux archivés. Répond au droit à l'effacement. L'opération est
+            irréversible ; seule la trace de la suppression est conservée dans le
+            journal.
+          </p>
+          <button type="button" id="supprimer-beneficiaire" class="btn btn-secondaire btn-danger">
+            <svg class="ico"><use href="#ico-corbeille"/></svg>
+            Supprimer ce bénéficiaire
+          </button>
+        </section>
       </div>
+    </section>
+
+    <!-- 2 bis. Vue d'ensemble et journal, réservés au coordinateur. -->
+    <section id="vue-pilotage" class="vue" hidden>
+      <header class="fiche-entete">
+        <div class="fiche-identite">
+          <h1 id="pilotage-titre"></h1>
+          <p id="pilotage-meta" class="fiche-meta"></p>
+        </div>
+        <button type="button" id="pilotage-fermer" class="btn btn-secondaire">
+          <svg class="ico"><use href="#ico-fermer"/></svg>
+          Fermer
+        </button>
+      </header>
+      <div id="pilotage-corps" class="pilotage-corps"></div>
     </section>
 
     <!-- 3. Parcours guidé : une étape par écran, sans défilement. -->
@@ -389,49 +497,82 @@
   </main>
 </div>
 
-<!-- Réglages : établissement et éducateur, en tiroir latéral. -->
+<!-- Compte, établissement et équipe, en tiroir latéral. -->
 <dialog id="reglages" class="tiroir" aria-labelledby="reglages-titre">
   <header class="tiroir-entete">
-    <h2 id="reglages-titre">Réglages</h2>
-    <button type="button" id="reglages-fermer" class="btn-icone" aria-label="Fermer les réglages">
+    <h2 id="reglages-titre">Mon compte</h2>
+    <button type="button" id="reglages-fermer" class="btn-icone" aria-label="Fermer">
       <svg class="ico"><use href="#ico-fermer"/></svg>
     </button>
   </header>
 
   <div class="tiroir-corps">
-    <section class="tiroir-section" data-section="etablissement">
-      <h3>Établissement</h3>
-      <p class="aide">
-        Il détermine le quota mensuel de bilans et la liste des bénéficiaires
-        affichée.
-      </p>
-      <select id="etablissement-select" aria-label="Établissement courant"></select>
-      <p id="quota-detail" class="aide"></p>
-
-      <details id="etablissement-ajout">
-        <summary>Ajouter un établissement</summary>
+    <section class="tiroir-section" data-section="compte">
+      <h3>Compte</h3>
+      <p id="compte-identite" class="compte-identite"></p>
+      <p id="compte-role" class="aide"></p>
+      <details id="mot-de-passe-ajout">
+        <summary>Changer mon mot de passe</summary>
         <div class="formulaire">
           <label class="champ">
-            <span class="champ-label">Nom</span>
-            <input type="text" id="etablissement-nom" placeholder="PCPE Les Tilleuls" autocomplete="off" />
+            <span class="champ-label">Mot de passe actuel</span>
+            <input type="password" id="mdp-actuel" autocomplete="current-password" />
           </label>
           <label class="champ">
-            <span class="champ-label">Quota mensuel de bilans</span>
-            <input type="number" id="etablissement-quota" min="1" step="1" placeholder="50" />
+            <span class="champ-label">Nouveau mot de passe</span>
+            <input type="password" id="mdp-nouveau" autocomplete="new-password" />
+            <span class="aide">Au moins 12 caractères. Vos autres sessions seront fermées.</span>
           </label>
-          <button type="button" id="etablissement-creer" class="btn btn-secondaire">Ajouter</button>
-          <p id="etablissement-statut" class="statut" role="status" aria-live="polite"></p>
+          <button type="button" id="mdp-valider" class="btn btn-secondaire">Changer</button>
+          <p id="mdp-statut" class="statut" role="status" aria-live="polite"></p>
         </div>
       </details>
+      <button type="button" id="deconnexion-btn" class="btn btn-secondaire">
+        Se déconnecter
+      </button>
     </section>
 
-    <section class="tiroir-section" data-section="educateur">
-      <h3>Éducateur</h3>
-      <p class="aide">Les bilans générés seront enregistrés à ce nom.</p>
-      <select id="auteur-select" aria-label="Éducateur courant"></select>
+    <section class="tiroir-section" data-section="etablissement" hidden>
+      <h3>Établissement</h3>
+      <p class="aide">
+        Ces coordonnées figurent en tête des documents exportés.
+      </p>
+      <div class="formulaire">
+        <label class="champ">
+          <span class="champ-label">Nom</span>
+          <input type="text" id="etab-nom" autocomplete="off" />
+        </label>
+        <label class="champ">
+          <span class="champ-label">Adresse</span>
+          <input type="text" id="etab-adresse" autocomplete="off" />
+        </label>
+        <div class="grille-deux">
+          <label class="champ">
+            <span class="champ-label">Téléphone</span>
+            <input type="text" id="etab-telephone" autocomplete="off" />
+          </label>
+          <label class="champ">
+            <span class="champ-label">Courriel</span>
+            <input type="text" id="etab-email" autocomplete="off" />
+          </label>
+        </div>
+        <label class="champ">
+          <span class="champ-label">Quota mensuel de bilans</span>
+          <input type="number" id="etab-quota" min="1" step="1" />
+        </label>
+        <button type="button" id="etab-enregistrer" class="btn btn-secondaire">
+          Enregistrer
+        </button>
+        <p id="etab-statut" class="statut" role="status" aria-live="polite"></p>
+      </div>
+      <p id="quota-detail" class="aide"></p>
+    </section>
 
+    <section class="tiroir-section" data-section="equipe" hidden>
+      <h3>Équipe</h3>
+      <ul id="liste-equipe" class="liste-equipe"></ul>
       <details id="educateur-ajout">
-        <summary>Ajouter un éducateur</summary>
+        <summary>Ajouter un compte</summary>
         <div class="formulaire">
           <div class="grille-deux">
             <label class="champ">
@@ -447,18 +588,38 @@
             <span class="champ-label">Adresse électronique</span>
             <input type="email" id="auteur-email" autocomplete="off" />
           </label>
+          <label class="champ">
+            <span class="champ-label">Mot de passe provisoire</span>
+            <input type="password" id="auteur-mot-de-passe" autocomplete="new-password" />
+            <span class="aide">Au moins 12 caractères. La personne pourra le changer.</span>
+          </label>
+          <label class="champ">
+            <span class="champ-label">Rôle</span>
+            <select id="auteur-role">
+              <option value="educateur">Éducateur</option>
+              <option value="coordinateur">Coordinateur</option>
+            </select>
+          </label>
           <button type="button" id="auteur-creer" class="btn btn-secondaire">Ajouter</button>
           <p id="auteur-statut" class="statut" role="status" aria-live="polite"></p>
         </div>
       </details>
     </section>
+
+    <section class="tiroir-section" data-section="journal" hidden>
+      <h3>Journal d'accès</h3>
+      <p class="aide">
+        Qui a consulté, modifié ou exporté quoi. Conservé pour répondre à une
+        demande d'audit ou à un signalement.
+      </p>
+      <button type="button" id="journal-btn" class="btn btn-secondaire">
+        Ouvrir le journal
+      </button>
+    </section>
   </div>
 
   <footer class="tiroir-pied">
-    <p class="aide">
-      L'authentification n'est pas encore en place : ce choix est déclaratif et
-      n'est pas vérifié par le serveur.
-    </p>
+    <p class="aide" id="reglages-pied"></p>
   </footer>
 </dialog>
 

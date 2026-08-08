@@ -8,6 +8,7 @@
 import { api } from "./api.js";
 import { confirmerAbandon } from "./bilan.js";
 import { etat, emettre } from "./etat.js";
+import { estCoordinateur } from "./reglages.js";
 import {
   $,
   age,
@@ -34,16 +35,6 @@ function sousTitre(beneficiaire) {
 export function dessinerListe() {
   const liste = $("liste-beneficiaires");
   vider(liste);
-
-  if (!etat.etablissementId) {
-    liste.append(
-      creer("p", {
-        classe: "liste-message",
-        texte: "Choisissez un établissement dans les réglages pour voir ses bénéficiaires.",
-      })
-    );
-    return;
-  }
 
   const filtre = normaliser(etat.filtre);
   const visibles = filtre
@@ -91,11 +82,7 @@ export function dessinerListe() {
 }
 
 export async function chargerBeneficiaires() {
-  if (!etat.etablissementId) {
-    etat.beneficiaires = [];
-  } else {
-    etat.beneficiaires = await api.listerBeneficiaires(etat.etablissementId);
-  }
+  etat.beneficiaires = await api.listerBeneficiaires();
 
   // Le bénéficiaire ouvert peut ne plus appartenir à l'établissement courant.
   if (
@@ -134,6 +121,44 @@ export function dessinerProfil() {
   $("profil-nom").value = beneficiaire.nom || "";
   $("profil-date-naissance").value = versValeurDate(beneficiaire.date_naissance);
   statut($("profil-statut"), "");
+  // L'effacement est réservé au coordinateur : c'est la seule action
+  // irréversible de l'application.
+  $("carte-effacement").hidden = !estCoordinateur();
+}
+
+/**
+ * Droit à l'effacement. Double garde-fou : la confirmation rappelle ce qui
+ * disparaît, et exige de saisir le nom — un « OK » réflexe ne doit pas suffire
+ * à supprimer un dossier.
+ */
+async function supprimerBeneficiaire() {
+  const beneficiaire = etat.beneficiaireCourant;
+  if (!beneficiaire) return;
+
+  const attendu = `${beneficiaire.prenom} ${beneficiaire.nom}`;
+  const saisi = window.prompt(
+    `Supprimer définitivement ${attendu} et tous ses bilans, y compris les bilans archivés ?\n\n` +
+      `Cette action est irréversible. Pour confirmer, saisissez le nom complet :\n${attendu}`
+  );
+  if (saisi === null) return;
+  if (saisi.trim() !== attendu) {
+    notifier("Nom non conforme : suppression annulée.", "erreur");
+    return;
+  }
+
+  try {
+    const resultat = await api.supprimerBeneficiaire(beneficiaire.id);
+    etat.beneficiaireId = null;
+    etat.beneficiaireCourant = null;
+    await chargerBeneficiaires();
+    emettre("beneficiaire-change", null);
+    notifier(
+      `${attendu} et ${resultat.bilans_supprimes} bilan(s) supprimés.`,
+      "ok"
+    );
+  } catch (err) {
+    notifier(err.message, "erreur");
+  }
 }
 
 // --- Création ---
@@ -143,10 +168,9 @@ function ouvrirCreation() {
   $("beneficiaire-form").reset();
   statut($("nouveau-statut"), "");
 
-  const etablissement = etat.etablissements.find((e) => e.id === etat.etablissementId);
-  $("nouveau-etablissement-rappel").textContent = etablissement
-    ? `Rattaché à l'établissement « ${etablissement.nom} ».`
-    : "Aucun établissement sélectionné : définissez-en un dans les réglages avant de continuer.";
+  $("nouveau-etablissement-rappel").textContent = etat.etablissement
+    ? `Rattaché à l'établissement « ${etat.etablissement.nom} ».`
+    : "";
 
   modale.showModal();
   $("nouveau-prenom").focus();
@@ -159,10 +183,6 @@ async function soumettreCreation(evenement) {
   const nom = $("nouveau-nom").value.trim();
   const dateNaissance = $("nouveau-date-naissance").value || null;
 
-  if (!etat.etablissementId) {
-    statut(retour, "Sélectionnez d'abord un établissement dans les réglages.", "erreur");
-    return;
-  }
   if (!prenom || !nom) {
     statut(retour, "Le prénom et le nom sont requis.", "erreur");
     return;
@@ -176,7 +196,6 @@ async function soumettreCreation(evenement) {
       nom,
       prenom,
       date_naissance: dateNaissance,
-      etablissement_id: etat.etablissementId,
     });
     await chargerBeneficiaires();
     $("dlg-beneficiaire").close();
@@ -234,6 +253,7 @@ export function initBeneficiaires() {
   }
   $("beneficiaire-form").addEventListener("submit", soumettreCreation);
   $("profil-form").addEventListener("submit", enregistrerProfil);
+  $("supprimer-beneficiaire").addEventListener("click", supprimerBeneficiaire);
 
   for (const bouton of document.querySelectorAll("[data-fermer-modale]")) {
     bouton.addEventListener("click", () => bouton.closest("dialog").close());

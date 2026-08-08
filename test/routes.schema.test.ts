@@ -1,5 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
+
+vi.mock("../src/services/sessionService", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/services/sessionService")>()),
+  resoudreSession: vi.fn(),
+  prolongerSession: vi.fn(),
+}));
+
+import { resoudreSession } from "../src/services/sessionService";
+import { bouchonnerSession, connecte } from "./aide/session";
 
 import { createApp } from "../src/app";
 import {
@@ -17,8 +26,10 @@ const app = createApp();
  * verrouillent l'égalité, pas seulement la présence.
  */
 describe("GET /api/schema/bilan", () => {
+  beforeEach(() => bouchonnerSession(resoudreSession));
+
   it("publie les trois listes fermées du schéma", async () => {
-    const res = await request(app).get("/api/schema/bilan");
+    const res = await connecte(request(app).get("/api/schema/bilan"));
 
     expect(res.status).toBe(200);
     expect(res.body.domaines_competence).toEqual([...DOMAINES_COMPETENCE]);
@@ -27,7 +38,7 @@ describe("GET /api/schema/bilan", () => {
   });
 
   it("conserve les libellés accentués tels quels", async () => {
-    const res = await request(app).get("/api/schema/bilan");
+    const res = await connecte(request(app).get("/api/schema/bilan"));
 
     expect(res.body.domaines_competence).toContain("Émotions et comportements");
     expect(res.body.types_comportement).toContain("Hétéro-agressivité");

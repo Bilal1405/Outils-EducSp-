@@ -34,14 +34,16 @@ export interface BilanPrecedent {
  * lieu d'un contexte.
  */
 export async function getDernierBilanValide(
-  patientId: string
+  patientId: string,
+  etablissementId: string
 ): Promise<BilanPrecedent | null> {
   const { rows } = await pool.query<{ id: string; contenu: unknown }>(
     `SELECT id, contenu FROM bilans
-     WHERE patient_id = $1 AND statut = 'validé' AND type_bilan = 'bilan'
+     WHERE patient_id = $1 AND etablissement_id = $2
+       AND statut = 'validé' AND type_bilan = 'bilan'
      ORDER BY periode_fin DESC
      LIMIT 1`,
-    [patientId]
+    [patientId, etablissementId]
   );
 
   if (rows.length === 0) {
@@ -103,15 +105,16 @@ export interface BilanSummary {
  * (par période couverte, puis par date de génération).
  */
 export async function listBilansForPatient(
-  patientId: string
+  patientId: string,
+  etablissementId: string
 ): Promise<BilanSummary[]> {
   const { rows } = await pool.query<BilanSummary>(
     `SELECT id, date_generation, type_bilan, periode_debut, periode_fin,
             statut, source
      FROM bilans
-     WHERE patient_id = $1
+     WHERE patient_id = $1 AND etablissement_id = $2
      ORDER BY periode_fin DESC, date_generation DESC`,
-    [patientId]
+    [patientId, etablissementId]
   );
   return rows;
 }
@@ -128,10 +131,13 @@ const COLONNES_DETAIL = `id, patient_id, etablissement_id, auteur_id, date_gener
             type_bilan, periode_debut, periode_fin, statut, source,
             bilan_precedent_id, contenu`;
 
-export async function getBilanById(id: string): Promise<BilanDetail | null> {
+export async function getBilanById(
+  id: string,
+  etablissementId: string
+): Promise<BilanDetail | null> {
   const { rows } = await pool.query<Omit<BilanDetail, "contenu"> & { contenu: unknown }>(
-    `SELECT ${COLONNES_DETAIL} FROM bilans WHERE id = $1`,
-    [id]
+    `SELECT ${COLONNES_DETAIL} FROM bilans WHERE id = $1 AND etablissement_id = $2`,
+    [id, etablissementId]
   );
 
   if (rows.length === 0) {
@@ -157,7 +163,8 @@ export interface BilanAvecBeneficiaire {
  * lecture du bilan, les deux requêtes ne seraient donc pas parallélisables).
  */
 export async function getBilanAvecBeneficiaire(
-  id: string
+  id: string,
+  etablissementId: string
 ): Promise<BilanAvecBeneficiaire | null> {
   const { rows } = await pool.query<{
     type_bilan: TypeBilan;
@@ -170,8 +177,8 @@ export async function getBilanAvecBeneficiaire(
             p.prenom || ' ' || p.nom AS beneficiaire
      FROM bilans b
      JOIN patients p ON p.id = b.patient_id
-     WHERE b.id = $1`,
-    [id]
+     WHERE b.id = $1 AND b.etablissement_id = $2`,
+    [id, etablissementId]
   );
 
   if (rows.length === 0) {
@@ -180,6 +187,83 @@ export async function getBilanAvecBeneficiaire(
 
   const row = rows[0];
   return { ...row, contenu: parserContenu(row.type_bilan, row.contenu) };
+}
+
+/**
+ * Dernier bilan **validé** d'une trame donnée, pour proposer d'en repartir.
+ *
+ * D'un trimestre à l'autre, une grille d'évaluation bouge peu : reprendre la
+ * précédente évite de recoter soixante lignes identiques. On ne propose que du
+ * validé — un brouillon peut être à moitié rempli, en repartir donnerait de
+ * fausses cotations sans que rien ne le signale.
+ */
+export async function getDernierBilanDeTrame(
+  patientId: string,
+  etablissementId: string,
+  type: TypeBilan
+): Promise<{ id: string; periode_fin: string; contenu: ContenuBilan } | null> {
+  const { rows } = await pool.query<{
+    id: string;
+    periode_fin: string;
+    contenu: unknown;
+  }>(
+    `SELECT id, periode_fin, contenu FROM bilans
+     WHERE patient_id = $1 AND etablissement_id = $2
+       AND type_bilan = $3 AND statut = 'validé'
+     ORDER BY periode_fin DESC, date_generation DESC
+     LIMIT 1`,
+    [patientId, etablissementId, type]
+  );
+
+  if (rows.length === 0) {
+    return null;
+  }
+  return {
+    id: rows[0].id,
+    periode_fin: rows[0].periode_fin,
+    contenu: parserContenu(type, rows[0].contenu),
+  };
+}
+
+export interface LigneTableauDeBord {
+  id: string;
+  nom: string;
+  prenom: string;
+  dernier_bilan: string | null;
+  dernier_repit: string | null;
+  dernier_trimestriel: string | null;
+  brouillons: number;
+}
+
+/**
+ * Vue d'ensemble d'un établissement : pour chaque bénéficiaire, la fin de
+ * période du dernier bilan validé de chaque trame, et le nombre de brouillons
+ * en cours.
+ *
+ * Une seule requête agrégée plutôt qu'une par bénéficiaire : la page se charge
+ * en un aller-retour quel que soit l'effectif.
+ */
+export async function tableauDeBord(
+  etablissementId: string
+): Promise<LigneTableauDeBord[]> {
+  const { rows } = await pool.query<LigneTableauDeBord & { brouillons: string }>(
+    `SELECT p.id, p.nom, p.prenom,
+            max(b.periode_fin) FILTER (
+              WHERE b.type_bilan = 'bilan' AND b.statut = 'validé') AS dernier_bilan,
+            max(b.periode_fin) FILTER (
+              WHERE b.type_bilan = 'repit' AND b.statut = 'validé') AS dernier_repit,
+            max(b.periode_fin) FILTER (
+              WHERE b.type_bilan = 'trimestriel' AND b.statut = 'validé') AS dernier_trimestriel,
+            count(b.id) FILTER (WHERE b.statut = 'brouillon')::text AS brouillons
+     FROM patients p
+     LEFT JOIN bilans b ON b.patient_id = p.id
+     WHERE p.etablissement_id = $1
+     GROUP BY p.id, p.nom, p.prenom
+     ORDER BY p.nom, p.prenom`,
+    [etablissementId]
+  );
+
+  return rows.map((ligne) => ({ ...ligne, brouillons: Number(ligne.brouillons) }));
 }
 
 export interface UpdateBilanParams {
@@ -195,18 +279,20 @@ export interface UpdateBilanParams {
  */
 export async function updateBilan(
   id: string,
+  etablissementId: string,
   params: UpdateBilanParams
 ): Promise<BilanDetail | null> {
   const { rows } = await pool.query<Omit<BilanDetail, "contenu"> & { contenu: unknown }>(
     `UPDATE bilans SET
        contenu = COALESCE($2, contenu),
        statut = COALESCE($3, statut)
-     WHERE id = $1
+     WHERE id = $1 AND etablissement_id = $4
      RETURNING ${COLONNES_DETAIL}`,
     [
       id,
       params.contenu !== undefined ? JSON.stringify(params.contenu) : null,
       params.statut ?? null,
+      etablissementId,
     ]
   );
 

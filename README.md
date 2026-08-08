@@ -4,6 +4,56 @@ Implémentation de [SPEC-moteur-bilan.md](./SPEC-moteur-bilan.md) : génération
 assistée par IA (Ollama self-hosted) de bilans trimestriels PCPE à partir
 d'un compte-rendu texte ou audio d'éducateur.
 
+## Sécurité et données personnelles
+
+L'outil manipule des données de santé concernant des personnes en situation de
+handicap, souvent mineures. Les garanties en place :
+
+- **Authentification par session serveur.** Mots de passe hachés avec `scrypt`,
+  jeton de session aléatoire dont seule l'empreinte est stockée, cookie
+  `httpOnly` + `SameSite=Lax`. Les sessions sont révocables immédiatement —
+  c'est pourquoi ce ne sont pas des JWT.
+- **Cloisonnement imposé côté serveur.** L'établissement vient de la session ;
+  aucune route ne le laisse choisir par l'appelant. Une ressource d'un autre
+  établissement répond 404, jamais 403 : un 403 confirmerait son existence.
+- **Trois rôles.** Éducateur (son établissement), coordinateur (+ suivi,
+  journal, gestion des comptes, effacement), administrateur (+ création
+  d'administrateurs).
+- **Protection CSRF** par en-tête personnalisé exigé sur toute écriture, en
+  plus du `SameSite`.
+- **Journal d'audit**, lectures comprises : c'est l'accès non légitime à un
+  dossier que cherche un audit, et il ne laisse aucune autre trace.
+- **Droit à l'effacement** : suppression d'un bénéficiaire et de ses bilans en
+  cascade, réservée au coordinateur, confirmée par saisie du nom. L'entrée de
+  journal survit à la suppression — elle ne contient plus de donnée de santé,
+  seulement la preuve que l'effacement a eu lieu.
+- **Plafonds** sur les routes qui appellent le moteur (20 générations et
+  100 reformulations par heure et par compte), en plus du quota mensuel.
+- **En-têtes** `Content-Security-Policy`, `X-Frame-Options`, `nosniff`.
+
+`test/securite.test.ts` vérifie cette frontière : refus sans session sur toutes
+les routes, refus CSRF, portée par établissement, rôles. Toute route ajoutée
+doit y être couverte.
+
+Ce qui n'est **pas** traité : les comptes-rendus envoyés au moteur de rédaction
+partent chez le fournisseur configuré (Cerebras, États-Unis, par défaut). Pour
+une structure soumise au RGPD sur des données de santé, basculer
+`LLM_PROVIDER=ollama` sur une instance auto-hébergée ferme ce sujet ;
+l'adaptateur est déjà en place.
+
+## Sauvegardes
+
+```bash
+npm run sauvegarde                     # sauvegarde horodatée dans sauvegardes/
+node scripts/sauvegarde.mjs --lister
+RESTAURER_VERS=postgres://…/base_test node scripts/sauvegarde.mjs --restaurer <fichier>
+```
+
+La restauration exige `RESTAURER_VERS` : elle écrase des données, elle ne doit
+pas pouvoir partir sur la base courante par inadvertance. Les fichiers produits
+contiennent l'intégralité des données de santé — à chiffrer et à conserver hors
+du serveur. Le dossier est ignoré par git.
+
 ## Prérequis
 
 - Node.js 20+

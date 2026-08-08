@@ -23,6 +23,21 @@ vi.mock("../src/services/llmClient", () => ({
   chatComplete: vi.fn(),
 }));
 
+vi.mock("../src/services/sessionService", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/services/sessionService")>()),
+  resoudreSession: vi.fn(),
+  prolongerSession: vi.fn(),
+}));
+
+vi.mock("../src/services/auditService", () => ({
+  journaliser: vi.fn(),
+  listerAudit: vi.fn(),
+}));
+
+vi.mock("../src/repositories/etablissementRepository", () => ({
+  getEtablissementById: vi.fn().mockResolvedValue(null),
+}));
+
 import { getPatientById } from "../src/repositories/patientRepository";
 import {
   getDernierBilanValide,
@@ -32,8 +47,10 @@ import {
 } from "../src/repositories/bilanRepository";
 import { getQuotaStatus, decrementerQuota } from "../src/services/quotaService";
 import { chatComplete } from "../src/services/llmClient";
+import { resoudreSession } from "../src/services/sessionService";
 import { createApp } from "../src/app";
 import { validBilanFixture } from "./fixtures/bilanFixture";
+import { bouchonnerSession, connecte } from "./aide/session";
 
 const app = createApp();
 
@@ -82,6 +99,7 @@ const bilanDetailFixture = {
 describe("POST /api/patients/:id/bilans/generate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    bouchonnerSession(resoudreSession);
     mockedGetPatientById.mockResolvedValue(patientFixture);
     mockedGetDernierBilanValide.mockResolvedValue(null);
     mockedGetQuotaStatus.mockResolvedValue(quotaDisponible);
@@ -95,14 +113,13 @@ describe("POST /api/patients/:id/bilans/generate", () => {
   });
 
   it("cas 1 (§9) : compte-rendu texte complet → bilan JSON complet, décrémente le quota après sauvegarde", async () => {
-    const res = await request(app)
+    const res = await connecte(request(app)
       .post("/api/patients/patient-1/bilans/generate")
-      .set("x-user-id", "auteur-1")
       .send({
         texte: "Compte-rendu couvrant les 7 domaines de compétence...",
         periode_debut: "2024-01-01",
         periode_fin: "2024-03-31",
-      });
+      }));
 
     expect(res.status).toBe(201);
     expect(res.body.contenu.en_tete.beneficiaire_nom).toBe(
@@ -128,14 +145,13 @@ describe("POST /api/patients/:id/bilans/generate", () => {
       contenu: validBilanFixture,
     });
 
-    const res = await request(app)
+    const res = await connecte(request(app)
       .post("/api/patients/patient-1/bilans/generate")
-      .set("x-user-id", "auteur-1")
       .send({
         texte: "Compte-rendu de suivi de la période...",
         periode_debut: "2024-04-01",
         periode_fin: "2024-06-30",
-      });
+      }));
 
     expect(res.status).toBe(201);
 
@@ -149,15 +165,14 @@ describe("POST /api/patients/:id/bilans/generate", () => {
   });
 
   it("trace l'origine dictée du compte-rendu sans jamais recevoir d'audio", async () => {
-    const res = await request(app)
+    const res = await connecte(request(app)
       .post("/api/patients/patient-1/bilans/generate")
-      .set("x-user-id", "auteur-1")
       .send({
         texte: "Transcription produite dans le navigateur…",
         source: "audio",
         periode_debut: "2024-01-01",
         periode_fin: "2024-03-31",
-      });
+      }));
 
     expect(res.status).toBe(201);
     expect(mockedCreerBilanBrouillon).toHaveBeenCalledWith(
@@ -166,14 +181,13 @@ describe("POST /api/patients/:id/bilans/generate", () => {
   });
 
   it("classe le compte-rendu en source texte par défaut", async () => {
-    await request(app)
-      .post("/api/patients/patient-1/bilans/generate")
-      .set("x-user-id", "auteur-1")
-      .send({
+    await connecte(
+      request(app).post("/api/patients/patient-1/bilans/generate").send({
         texte: "Compte-rendu saisi au clavier",
         periode_debut: "2024-01-01",
         periode_fin: "2024-03-31",
-      });
+      })
+    );
 
     expect(mockedCreerBilanBrouillon).toHaveBeenCalledWith(
       expect.objectContaining({ source: "texte" })
@@ -181,14 +195,13 @@ describe("POST /api/patients/:id/bilans/generate", () => {
   });
 
   it("cas 3 (§9) : compte-rendu vide/insuffisant → alerte bloquante, aucune génération (BIL-04, G1, G2)", async () => {
-    const res = await request(app)
+    const res = await connecte(request(app)
       .post("/api/patients/patient-1/bilans/generate")
-      .set("x-user-id", "auteur-1")
       .send({
         texte: "   ",
         periode_debut: "2024-01-01",
         periode_fin: "2024-03-31",
-      });
+      }));
 
     expect(res.status).toBe(400);
     expect(mockedChatComplete).not.toHaveBeenCalled();
@@ -202,14 +215,13 @@ describe("POST /api/patients/:id/bilans/generate", () => {
       restant: 0,
     });
 
-    const res = await request(app)
+    const res = await connecte(request(app)
       .post("/api/patients/patient-1/bilans/generate")
-      .set("x-user-id", "auteur-1")
       .send({
         texte: "Compte-rendu...",
         periode_debut: "2024-01-01",
         periode_fin: "2024-03-31",
-      });
+      }));
 
     expect(res.status).toBe(429);
     expect(mockedChatComplete).not.toHaveBeenCalled();
@@ -220,21 +232,35 @@ describe("POST /api/patients/:id/bilans/generate", () => {
   it("404 si le patient n'existe pas", async () => {
     mockedGetPatientById.mockResolvedValue(null);
 
-    const res = await request(app)
+    const res = await connecte(request(app)
       .post("/api/patients/inconnu/bilans/generate")
-      .set("x-user-id", "auteur-1")
-      .send({ texte: "x", periode_debut: "2024-01-01", periode_fin: "2024-03-31" });
+      .send({ texte: "x", periode_debut: "2024-01-01", periode_fin: "2024-03-31" }));
 
     expect(res.status).toBe(404);
   });
 
-  it("401 si l'en-tête x-user-id (auteur) est absent", async () => {
+  it("401 sans session : l'auteur vient de la session, plus d'un en-tête déclaré", async () => {
     const res = await request(app)
       .post("/api/patients/patient-1/bilans/generate")
+      .set("x-outils-educsp", "1")
       .send({ texte: "x", periode_debut: "2024-01-01", periode_fin: "2024-03-31" });
 
     expect(res.status).toBe(401);
     expect(mockedChatComplete).not.toHaveBeenCalled();
+  });
+
+  it("attribue le bilan à l'utilisateur de la session", async () => {
+    await connecte(
+      request(app).post("/api/patients/patient-1/bilans/generate").send({
+        texte: "Compte-rendu",
+        periode_debut: "2024-01-01",
+        periode_fin: "2024-03-31",
+      })
+    );
+
+    expect(mockedCreerBilanBrouillon).toHaveBeenCalledWith(
+      expect.objectContaining({ auteurId: "auteur-1", etablissementId: "etab-1" })
+    );
   });
 });
 
@@ -242,14 +268,15 @@ describe("POST /api/patients/:id/bilans/generate", () => {
 describe("PATCH /api/bilans/:id", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    bouchonnerSession(resoudreSession);
   });
 
   it("refuse toute modification d'un bilan déjà validé (409, immutabilité)", async () => {
     mockedGetBilanById.mockResolvedValue({ ...bilanDetailFixture, statut: "validé" });
 
-    const res = await request(app)
+    const res = await connecte(request(app)
       .patch("/api/bilans/bilan-1")
-      .send({ statut: "validé" });
+      .send({ statut: "validé" }));
 
     expect(res.status).toBe(409);
     expect(mockedUpdateBilan).not.toHaveBeenCalled();
@@ -259,21 +286,24 @@ describe("PATCH /api/bilans/:id", () => {
     mockedGetBilanById.mockResolvedValue(bilanDetailFixture);
     mockedUpdateBilan.mockResolvedValue({ ...bilanDetailFixture, statut: "validé" });
 
-    const res = await request(app)
+    const res = await connecte(request(app)
       .patch("/api/bilans/bilan-1")
-      .send({ statut: "validé" });
+      .send({ statut: "validé" }));
 
     expect(res.status).toBe(200);
     expect(res.body.statut).toBe("validé");
-    expect(mockedUpdateBilan).toHaveBeenCalledWith("bilan-1", { statut: "validé" });
+    expect(mockedUpdateBilan).toHaveBeenCalledWith("bilan-1", "etab-1", {
+      contenu: undefined,
+      statut: "validé",
+    });
   });
 
   it("404 si le bilan n'existe pas", async () => {
     mockedGetBilanById.mockResolvedValue(null);
 
-    const res = await request(app)
+    const res = await connecte(request(app)
       .patch("/api/bilans/inconnu")
-      .send({ statut: "validé" });
+      .send({ statut: "validé" }));
 
     expect(res.status).toBe(404);
   });
