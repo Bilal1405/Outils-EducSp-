@@ -167,6 +167,28 @@ Write-Host ""
 Write-Host "  L'application va s'ouvrir dans votre navigateur." -ForegroundColor Green
 Write-Host "  http://localhost:$port" -ForegroundColor White
 Write-Host ""
+
+# Adresses du poste sur le reseau local : c'est ce qu'il faut transmettre a un
+# collegue, « localhost » ne designant que cette machine.
+$adresses = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+    Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*" }
+if ($adresses) {
+    Write-Host "  Depuis un autre ordinateur du meme reseau :" -ForegroundColor White
+    foreach ($a in $adresses) {
+        Write-Host "    http://$($a.IPAddress):$port" -ForegroundColor White
+    }
+    Write-Host ""
+    Write-Host "  Deux limites en acces reseau non chiffre :" -ForegroundColor Yellow
+    Write-Host "    - la dictee vocale ne fonctionnera pas (le navigateur reserve" -ForegroundColor DarkGray
+    Write-Host "      le micro aux adresses securisees et a localhost) ;" -ForegroundColor DarkGray
+    Write-Host "    - mots de passe et donnees circulent en clair sur le reseau." -ForegroundColor DarkGray
+    Write-Host "  Pour un usage reel a plusieurs postes, passez par un deploiement" -ForegroundColor DarkGray
+    Write-Host "  HTTPS (voir la section Deploiement du README)." -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "  Le pare-feu Windows demandera peut-etre d'autoriser Node.js :" -ForegroundColor DarkGray
+    Write-Host "  acceptez pour les reseaux prives uniquement." -ForegroundColor DarkGray
+    Write-Host ""
+}
 Write-Host "  Gardez cette fenêtre ouverte pendant l'utilisation." -ForegroundColor DarkGray
 Write-Host "  Fermez-la, ou faites Ctrl+C, pour arrêter l'application." -ForegroundColor DarkGray
 Write-Host ""

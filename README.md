@@ -301,6 +301,43 @@ En écran étroit, la colonne des bénéficiaires devient un tiroir. L'interface
 s'affiche en clair uniquement : l'outil s'utilise en journée, souvent à
 plusieurs devant le même écran.
 
+## Accéder depuis un autre ordinateur
+
+Trois manières, très inégales.
+
+### 1. Déploiement Render — la seule adaptée à un usage réel
+
+Donne une adresse publique en HTTPS, accessible de n'importe où. C'est la
+configuration décrite ci-dessous : HTTPS de bout en bout, donc dictée vocale
+fonctionnelle et mots de passe protégés.
+
+### 2. Réseau local — pour essayer à deux postes
+
+L'application écoute déjà sur toutes les interfaces : au démarrage, elle
+affiche les adresses par lesquelles la joindre (`http://192.168.…:3000`).
+Transmettez-en une à un collègue du même réseau. Le pare-feu Windows demandera
+d'autoriser Node.js — acceptez pour les **réseaux privés** seulement.
+
+Deux limites, qui ne sont pas contournables par du code :
+
+- **la dictée vocale ne fonctionnera pas.** Les navigateurs réservent l'accès
+  au micro aux origines sécurisées : HTTPS, ou `localhost`. Une adresse IP en
+  HTTP n'en fait pas partie. La règle est côté navigateur, pas côté
+  application ;
+- **tout circule en clair** : mots de passe, cookie de session, contenu des
+  bilans. Sur un réseau d'établissement c'est déjà discutable ; sur du Wi-Fi
+  partagé, non.
+
+À réserver à une démonstration avec des données fictives.
+
+### 3. Tunnel temporaire — pour montrer l'outil à distance
+
+Un tunnel (Cloudflare Tunnel, ngrok) publie votre poste sur une adresse HTTPS
+publique : la dictée refonctionne, et le lien s'ouvre de n'importe où. Mais
+tout le trafic — donc les données de santé — traverse l'infrastructure du
+fournisseur de tunnel. À n'utiliser qu'avec des données fictives, et à couper
+après la démonstration.
+
 ## Déploiement (Render)
 
 Le fichier [`render.yaml`](./render.yaml) définit un Blueprint Render :
@@ -310,7 +347,20 @@ automatique à chaque push sur la branche configurée.
 1. Créez un compte sur [render.com](https://render.com) (gratuit) et connectez votre compte GitHub.
 2. **New → Blueprint**, sélectionnez le dépôt `Outils-EducSp-` — Render détecte `render.yaml` automatiquement.
 3. Une fois les services créés, allez dans le service web → **Environment** et renseignez `CEREBRAS_API_KEY` (clé gratuite sur cloud.cerebras.ai) — c'est la seule valeur à saisir manuellement, elle n'est jamais commitée dans le repo.
-4. Chaque `git push` sur la branche configurée redéploie automatiquement.
+4. Ouvrez l'adresse fournie par Render : le premier écran propose la **mise en
+   service** (établissement + premier administrateur). Elle n'est accessible
+   que tant qu'aucun compte n'existe — faites-la immédiatement, avant de
+   communiquer l'adresse.
+5. Chaque `git push` sur la branche configurée redéploie automatiquement.
+
+`NODE_ENV=production` est posé par le Blueprint : il conditionne l'attribut
+`secure` du cookie de session. Ne le retirez pas.
+
+Limites du plan gratuit, à connaître avant de mettre de vraies données : le
+service s'endort après quinze minutes sans trafic (première visite lente), et
+la base gratuite **n'est pas sauvegardée** et expire au bout de trente jours.
+Pour un usage réel, passez la base en plan payant et planifiez
+`npm run sauvegarde`.
 
 La dictée vocale fonctionne aussi sur le déploiement hébergé, puisqu'elle
 s'exécute dans le navigateur de l'utilisateur et ne demande aucun service
