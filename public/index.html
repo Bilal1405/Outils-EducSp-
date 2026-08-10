@@ -87,12 +87,12 @@
       <p id="connexion-statut" class="statut" role="status" aria-live="polite"></p>
       <!-- Visible seulement tant que la mise en service reste possible : une
            fois l'instance initialisée, ce chemin n'existe plus. -->
-      <p class="portail-bascule" id="vers-initialisation" hidden>
-        Première utilisation ?
-        <button type="button" class="btn-lien" id="vers-initialisation-btn">
+      <div class="portail-bascule" id="vers-initialisation" hidden>
+        <span class="portail-ou">ou</span>
+        <button type="button" class="btn btn-secondaire btn-bloc" id="vers-initialisation-btn">
           Mettre l'outil en service
         </button>
-      </p>
+      </div>
     </form>
 
     <form id="form-initialisation" class="formulaire" hidden>
@@ -101,6 +101,15 @@
         Aucun compte n'existe encore. Créez l'établissement et le premier
         administrateur. Cette page ne sera plus accessible ensuite.
       </p>
+      <!-- Placé avant le formulaire, et non après : sur un écran de portable,
+           le bas de cette carte tombe sous la ligne de flottaison. Une sortie
+           qu'il faut aller chercher en défilant n'est pas une sortie. -->
+      <div class="portail-deja">
+        <span>Vous avez déjà un compte ?</span>
+        <button type="button" class="btn btn-secondaire" id="vers-connexion-btn">
+          Se connecter
+        </button>
+      </div>
       <p id="init-rappel-etablissement" class="encart" hidden></p>
       <label class="champ" id="init-etablissement-champ">
         <span class="champ-label">Nom de l'établissement</span>
@@ -133,11 +142,6 @@
         Créer et se connecter
       </button>
       <p id="init-statut" class="statut" role="status" aria-live="polite"></p>
-      <p class="portail-bascule">
-        <button type="button" class="btn-lien" id="vers-connexion-btn">
-          J'ai déjà un compte
-        </button>
-      </p>
     </form>
 
     <p class="portail-mention">
