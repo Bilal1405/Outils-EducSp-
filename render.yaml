@@ -4,8 +4,12 @@ services:
     runtime: node
     plan: free
     branch: claude/moteur-bilan-spec-nxjqrc
-    buildCommand: npm install && npm run build
-    startCommand: npm run migrate && npm start
+    # `--include=dev` est indispensable : avec NODE_ENV=production, npm omet
+    # les dépendances de développement, et ni tsc ni tsx ne seraient installés.
+    buildCommand: npm ci --include=dev && npm run build
+    # Migration exécutée depuis le JavaScript compilé : tsx n'a pas à être
+    # présent au démarrage.
+    startCommand: npm run migrate:prod && npm start
     healthCheckPath: /health
     envVars:
       # Décide notamment que le cookie de session exige HTTPS. Sans cette

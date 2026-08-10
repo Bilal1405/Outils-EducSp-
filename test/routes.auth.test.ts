@@ -13,7 +13,7 @@ vi.mock("../src/repositories/utilisateurRepository", () => ({
 }));
 
 vi.mock("../src/repositories/etablissementRepository", () => ({
-  listerEtablissements: vi.fn(),
+  listerEtablissementsAvecEffectif: vi.fn(),
   creerEtablissement: vi.fn(),
   getEtablissementById: vi.fn(),
   mettreAJourEtablissement: vi.fn(),
@@ -41,11 +41,32 @@ import {
 } from "../src/repositories/utilisateurRepository";
 import {
   creerEtablissement,
-  listerEtablissements,
+  listerEtablissementsAvecEffectif,
+  mettreAJourEtablissement,
 } from "../src/repositories/etablissementRepository";
 import { createApp } from "../src/app";
 
 const app = createApp();
+
+/** Un établissement tel que le renvoie le recensement, effectif compris. */
+function etablissement(nom: string, id: string, nombre_beneficiaires: number) {
+  return {
+    id,
+    nom,
+    adresse: "",
+    telephone: "",
+    email: "",
+    quota_mensuel_bilans: 50,
+    nombre_beneficiaires,
+  };
+}
+
+/** Ce que sème la migration 004 sur toute base, neuve comprise. */
+const SEMEE = etablissement(
+  "Établissement par défaut",
+  "00000000-0000-0000-0000-000000000001",
+  0
+);
 
 const CORPS_VALIDE = {
   nom: "Dubois",
@@ -87,7 +108,7 @@ describe("mise en service", () => {
 
   it("refuse un mot de passe trop court, sans rien créer", async () => {
     vi.mocked(aucunCompteUtilisable).mockResolvedValue(true);
-    vi.mocked(listerEtablissements).mockResolvedValue([]);
+    vi.mocked(listerEtablissementsAvecEffectif).mockResolvedValue([]);
 
     const res = await miseEnService({
       ...CORPS_VALIDE,
@@ -102,7 +123,7 @@ describe("mise en service", () => {
 
   it("crée l'établissement sur une base vierge", async () => {
     vi.mocked(aucunCompteUtilisable).mockResolvedValue(true);
-    vi.mocked(listerEtablissements).mockResolvedValue([]);
+    vi.mocked(listerEtablissementsAvecEffectif).mockResolvedValue([]);
 
     const res = await miseEnService({ ...CORPS_VALIDE, etablissement: "PCPE" });
 
@@ -118,15 +139,8 @@ describe("mise en service", () => {
    */
   it("se rattache à l'établissement existant plutôt que d'en ouvrir un second", async () => {
     vi.mocked(aucunCompteUtilisable).mockResolvedValue(true);
-    vi.mocked(listerEtablissements).mockResolvedValue([
-      {
-        id: "etab-existant",
-        nom: "PCPE Transitions",
-        adresse: "",
-        telephone: "",
-        email: "",
-        quota_mensuel_bilans: 50,
-      },
+    vi.mocked(listerEtablissementsAvecEffectif).mockResolvedValue([
+      etablissement("PCPE Transitions", "etab-existant", 12),
     ]);
 
     const res = await miseEnService(CORPS_VALIDE);
@@ -140,15 +154,8 @@ describe("mise en service", () => {
 
   it("annonce l'établissement existant pour que le formulaire ne le redemande pas", async () => {
     vi.mocked(aucunCompteUtilisable).mockResolvedValue(true);
-    vi.mocked(listerEtablissements).mockResolvedValue([
-      {
-        id: "etab-existant",
-        nom: "PCPE Transitions",
-        adresse: "",
-        telephone: "",
-        email: "",
-        quota_mensuel_bilans: 50,
-      },
+    vi.mocked(listerEtablissementsAvecEffectif).mockResolvedValue([
+      etablissement("PCPE Transitions", "etab-existant", 12),
     ]);
 
     const res = await request(app).get("/api/auth/etat");
@@ -159,9 +166,55 @@ describe("mise en service", () => {
     });
   });
 
+  /**
+   * La migration 004 sème un « Établissement par défaut » sur toute base, y
+   * compris neuve. Le prendre pour une structure réelle ferait taire la
+   * question du nom au premier démarrage, et rattacherait silencieusement le
+   * premier compte à un établissement qui n'existe pas.
+   */
+  it("ne présente pas l'établissement semé, vide, comme un établissement existant", async () => {
+    vi.mocked(aucunCompteUtilisable).mockResolvedValue(true);
+    vi.mocked(listerEtablissementsAvecEffectif).mockResolvedValue([SEMEE]);
+
+    const res = await request(app).get("/api/auth/etat");
+
+    expect(res.body).toMatchObject({
+      initialise: false,
+      etablissement_existant: null,
+    });
+  });
+
+  it("renomme l'établissement semé plutôt que d'en créer un second à côté", async () => {
+    vi.mocked(aucunCompteUtilisable).mockResolvedValue(true);
+    vi.mocked(listerEtablissementsAvecEffectif).mockResolvedValue([SEMEE]);
+
+    const res = await miseEnService({ ...CORPS_VALIDE, etablissement: "PCPE" });
+
+    expect(res.status).toBe(201);
+    expect(creerEtablissement).not.toHaveBeenCalled();
+    expect(mettreAJourEtablissement).toHaveBeenCalledWith(
+      SEMEE.id,
+      expect.objectContaining({ nom: "PCPE" })
+    );
+    expect(creerUtilisateur).toHaveBeenCalledWith(
+      expect.objectContaining({ etablissementId: SEMEE.id })
+    );
+  });
+
+  it("exige quand même le nom quand le seul établissement est celui semé", async () => {
+    vi.mocked(aucunCompteUtilisable).mockResolvedValue(true);
+    vi.mocked(listerEtablissementsAvecEffectif).mockResolvedValue([SEMEE]);
+
+    const res = await miseEnService(CORPS_VALIDE);
+
+    expect(res.status).toBe(400);
+    expect(creerUtilisateur).not.toHaveBeenCalled();
+    expect(mettreAJourEtablissement).not.toHaveBeenCalled();
+  });
+
   it("exige un nom d'établissement quand il n'y en a aucun", async () => {
     vi.mocked(aucunCompteUtilisable).mockResolvedValue(true);
-    vi.mocked(listerEtablissements).mockResolvedValue([]);
+    vi.mocked(listerEtablissementsAvecEffectif).mockResolvedValue([]);
 
     const res = await miseEnService(CORPS_VALIDE);
 

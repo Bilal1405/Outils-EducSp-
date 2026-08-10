@@ -10,7 +10,8 @@ import {
 } from "../repositories/utilisateurRepository";
 import {
   creerEtablissement,
-  listerEtablissements,
+  listerEtablissementsAvecEffectif,
+  mettreAJourEtablissement,
 } from "../repositories/etablissementRepository";
 import {
   hacherMotDePasse,
@@ -80,22 +81,41 @@ authRouter.post("/api/auth/initialisation", async (req, res) => {
     return res.status(400).json({ error: probleme });
   }
 
-  // Un établissement peut déjà exister — instance mise à jour depuis une
-  // version sans authentification, où bénéficiaires et bilans lui sont
-  // rattachés. En créer un second rendrait ces données invisibles au premier
-  // compte. On s'y rattache donc, plutôt que d'en ouvrir un autre.
-  const existants = await listerEtablissements();
+  // Trois cas, et la seule présence d'une ligne `etablissements` ne les
+  // sépare pas — la migration 004 en sème toujours une :
+  //
+  //  - un établissement peuplé : instance mise à jour depuis une version sans
+  //    authentification. En créer un second rendrait ses bénéficiaires
+  //    invisibles au premier compte ; on s'y rattache ;
+  //  - un établissement vide : la ligne semée par la migration. On la renomme
+  //    avec le nom donné, plutôt que d'abandonner une coquille à côté ;
+  //  - aucun : on crée.
+  const existants = await listerEtablissementsAvecEffectif();
+  const peuple = existants.find((e) => e.nombre_beneficiaires > 0);
+  const vide = existants.find((e) => e.nombre_beneficiaires === 0);
+
   let etablissement: { id: string };
-  if (existants.length > 0) {
-    etablissement = { id: existants[0].id };
+  let nomEtablissement: string;
+  if (peuple) {
+    etablissement = { id: peuple.id };
+    nomEtablissement = peuple.nom;
   } else {
     if (!parsed.data.etablissement) {
       return res.status(400).json({ error: "Nom de l'établissement requis." });
     }
-    etablissement = await creerEtablissement(
-      parsed.data.etablissement,
-      parsed.data.quota_mensuel_bilans
-    );
+    nomEtablissement = parsed.data.etablissement;
+    if (vide) {
+      await mettreAJourEtablissement(vide.id, {
+        nom: parsed.data.etablissement,
+        quota_mensuel_bilans: parsed.data.quota_mensuel_bilans,
+      });
+      etablissement = { id: vide.id };
+    } else {
+      etablissement = await creerEtablissement(
+        parsed.data.etablissement,
+        parsed.data.quota_mensuel_bilans
+      );
+    }
   }
 
   const utilisateur = await creerUtilisateur({
@@ -120,8 +140,11 @@ authRouter.post("/api/auth/initialisation", async (req, res) => {
     etablissementId: etablissement.id,
     cibleType: "etablissement",
     cibleId: etablissement.id,
-    cibleLibelle: existants[0]?.nom ?? parsed.data.etablissement,
-    details: { etablissement_repris: existants.length > 0 },
+    cibleLibelle: nomEtablissement,
+    details: {
+      etablissement_repris: Boolean(peuple),
+      etablissement_renomme: !peuple && Boolean(vide),
+    },
     adresseIp: adresseIp(req),
   });
 
@@ -132,17 +155,20 @@ authRouter.post("/api/auth/initialisation", async (req, res) => {
  * L'interface a besoin de savoir s'il faut proposer la mise en service, et le
  * cas échéant si un établissement préexiste — auquel cas elle ne redemande pas
  * son nom.
+ *
+ * « Préexiste » veut dire *peuplé* : l'établissement vide semé par la
+ * migration 004 ne désigne aucune structure réelle, et le taire ici est ce
+ * qui fait que le formulaire demande bien son nom sur une base neuve.
  */
 authRouter.get("/api/auth/etat", async (req, res) => {
   const initialise = !(await aucunCompteUtilisable());
-  const existants = initialise ? [] : await listerEtablissements();
+  const existants = initialise ? [] : await listerEtablissementsAvecEffectif();
+  const peuple = existants.find((e) => e.nombre_beneficiaires > 0);
 
   res.json({
     initialise,
     utilisateur: req.utilisateur ?? null,
-    etablissement_existant: existants[0]
-      ? { id: existants[0].id, nom: existants[0].nom }
-      : null,
+    etablissement_existant: peuple ? { id: peuple.id, nom: peuple.nom } : null,
   });
 });
 

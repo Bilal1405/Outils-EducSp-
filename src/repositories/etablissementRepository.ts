@@ -21,14 +21,35 @@ export async function getEtablissementById(
   return rows[0] ?? null;
 }
 
+export interface EtablissementRecense extends Etablissement {
+  nombre_beneficiaires: number;
+}
+
 /**
- * Établissements déjà enregistrés. Sert à la mise en service : s'il en existe
- * déjà un, le premier compte doit s'y rattacher plutôt que d'en créer un
- * second, sans quoi les bénéficiaires déjà saisis deviendraient invisibles.
+ * Établissements déjà enregistrés, avec leur effectif. Sert à la mise en
+ * service, qui doit distinguer deux situations que la seule présence d'une
+ * ligne ne sépare pas :
+ *
+ *  - un établissement **peuplé** signe une instance mise à jour depuis une
+ *    version sans authentification ; le premier compte doit s'y rattacher,
+ *    sans quoi les bénéficiaires déjà saisis deviendraient invisibles ;
+ *  - un établissement **vide** est presque toujours celui que sème la
+ *    migration 004 (« Établissement par défaut ») pour rattacher d'anciennes
+ *    données. Sur une base neuve il ne représente aucune structure réelle :
+ *    la mise en service doit demander le vrai nom et renommer cette ligne.
+ *
+ * Le plus peuplé d'abord : c'est celui auquel se rattacher.
  */
-export async function listerEtablissements(): Promise<Etablissement[]> {
-  const { rows } = await pool.query<Etablissement>(
-    `SELECT ${COLONNES} FROM etablissements ORDER BY nom`
+export async function listerEtablissementsAvecEffectif(): Promise<
+  EtablissementRecense[]
+> {
+  const { rows } = await pool.query<EtablissementRecense>(
+    `SELECT e.id, e.nom, e.adresse, e.telephone, e.email, e.quota_mensuel_bilans,
+            COUNT(p.id)::int AS nombre_beneficiaires
+       FROM etablissements e
+       LEFT JOIN patients p ON p.etablissement_id = e.id
+      GROUP BY e.id
+      ORDER BY COUNT(p.id) DESC, e.nom`
   );
   return rows;
 }

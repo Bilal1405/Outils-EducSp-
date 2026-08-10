@@ -5,16 +5,17 @@
   "description": "Moteur de génération de bilans éducatifs trimestriels (PCPE) assisté par IA",
   "type": "commonjs",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "dev": "tsx watch src/server.ts",
-    "start": "node dist/server.js",
+    "start": "node dist/src/server.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "migrate": "tsx scripts/migrate.ts",
     "validate:corpus": "tsx test/validate-corpus.ts",
     "vendor:asr": "node scripts/vendor-asr.mjs",
     "postinstall": "node scripts/vendor-asr.mjs --tolerant",
-    "sauvegarde": "node scripts/sauvegarde.mjs"
+    "sauvegarde": "node scripts/sauvegarde.mjs",
+    "migrate:prod": "node dist/scripts/migrate.js"
   },
   "dependencies": {
     "docx": "^9.7.1",

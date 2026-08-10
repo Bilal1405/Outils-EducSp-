@@ -1,9 +1,10 @@
 import "dotenv/config";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { racineProjet } from "../src/chemins";
 import { Pool } from "pg";
 
-const MIGRATIONS_DIR = path.join(__dirname, "..", "db", "migrations");
+const MIGRATIONS_DIR = path.join(racineProjet(__dirname), "db", "migrations");
 
 async function main() {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });

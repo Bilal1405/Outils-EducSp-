@@ -13,10 +13,14 @@ vi.mock("../src/repositories/utilisateurRepository", () => ({
 }));
 
 vi.mock("../src/repositories/etablissementRepository", () => ({
-  listerEtablissements: vi.fn().mockResolvedValue([]),
+  listerEtablissementsAvecEffectif: vi.fn().mockResolvedValue([]),
   creerEtablissement: vi.fn(),
   getEtablissementById: vi.fn(),
   mettreAJourEtablissement: vi.fn(),
+}));
+
+vi.mock("../src/db", () => ({
+  pool: { query: vi.fn().mockResolvedValue({ rows: [] }) },
 }));
 
 vi.mock("../src/services/auditService", () => ({
@@ -99,6 +103,21 @@ describe("HTTPS en production", () => {
 
     expect(res.headers["strict-transport-security"]).not.toContain("includeSubDomains");
     expect(res.headers["strict-transport-security"]).not.toContain("preload");
+  });
+
+  /**
+   * L'hébergeur interroge la sonde depuis l'intérieur du conteneur, sans
+   * passer par le répartiteur : `x-forwarded-proto` est absent. Rediriger
+   * répondrait 308 à une sonde qui n'attend qu'un 200, l'instance serait
+   * déclarée en panne et le déploiement échouerait.
+   */
+  it("laisse la sonde de vivacité répondre en clair", async () => {
+    const app = await appPour("production");
+
+    const res = await request(app).get("/health");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ status: "ok" });
   });
 
   it("ne redirige ni ne verrouille en développement local", async () => {

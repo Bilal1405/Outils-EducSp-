@@ -1,5 +1,6 @@
 import path from "node:path";
 import express from "express";
+import { racineProjet } from "./chemins";
 import { config } from "./config";
 import { pool } from "./db";
 import {
@@ -49,10 +50,17 @@ export function createApp() {
     app.use((req, res, next) => {
       // `req.secure` tient compte de `trust proxy` : derrière Render, il
       // reflète `x-forwarded-proto`, pas la connexion locale au conteneur.
-      if (!req.secure) {
+      //
+      // `/health` est la seule exception. L'hébergeur interroge la sonde
+      // depuis l'intérieur du conteneur, souvent sans `x-forwarded-proto` :
+      // la redirection serait lue comme une instance en panne et le
+      // déploiement échouerait. Elle ne transporte ni identifiant ni donnée.
+      if (req.path !== "/health" && !req.secure) {
         return res.redirect(308, `https://${req.header("host")}${req.originalUrl}`);
       }
-      res.setHeader("Strict-Transport-Security", "max-age=31536000");
+      if (req.secure) {
+        res.setHeader("Strict-Transport-Security", "max-age=31536000");
+      }
       return next();
     });
   }
@@ -99,7 +107,7 @@ export function createApp() {
     }
   });
 
-  app.use(express.static(path.join(__dirname, "..", "public")));
+  app.use(express.static(path.join(racineProjet(__dirname), "public")));
 
   // Ordre déterminant. `authentifier` résout la session pour tout le monde ;
   // `protegerCsrf` s'applique à toute écriture, y compris la connexion ; puis
