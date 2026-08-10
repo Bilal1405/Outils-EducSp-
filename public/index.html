@@ -71,11 +71,12 @@
         Aucun compte n'existe encore. Créez l'établissement et le premier
         administrateur. Cette page ne sera plus accessible ensuite.
       </p>
-      <label class="champ">
+      <p id="init-rappel-etablissement" class="encart" hidden></p>
+      <label class="champ" id="init-etablissement-champ">
         <span class="champ-label">Nom de l'établissement</span>
-        <input type="text" id="init-etablissement" required autocomplete="off" />
+        <input type="text" id="init-etablissement" autocomplete="off" />
       </label>
-      <label class="champ">
+      <label class="champ" id="init-quota-champ">
         <span class="champ-label">Quota mensuel de bilans</span>
         <input type="number" id="init-quota" min="1" step="1" placeholder="50" />
       </label>

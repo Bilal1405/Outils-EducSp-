@@ -320,7 +320,11 @@ async function amorcer() {
   }
 
   etat.utilisateur =
-    etatAuth.utilisateur || (await ouvrirPortail({ initialise: etatAuth.initialise }));
+    etatAuth.utilisateur ||
+    (await ouvrirPortail({
+      initialise: etatAuth.initialise,
+      etablissementExistant: etatAuth.etablissement_existant,
+    }));
 
   // L'application n'est révélée qu'une fois la session établie. La masquer
   // seulement à l'écran ne suffirait pas : elle resterait dans l'ordre de

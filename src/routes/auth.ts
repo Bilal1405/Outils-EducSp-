@@ -2,13 +2,16 @@ import { Router } from "express";
 import { z } from "zod";
 import { config } from "../config";
 import {
-  aucunUtilisateur,
+  aucunCompteUtilisable,
   changerMotDePasse,
   creerUtilisateur,
   getUtilisateurParEmail,
   marquerConnexion,
 } from "../repositories/utilisateurRepository";
-import { creerEtablissement } from "../repositories/etablissementRepository";
+import {
+  creerEtablissement,
+  listerEtablissements,
+} from "../repositories/etablissementRepository";
 import {
   hacherMotDePasse,
   motDePasseAcceptable,
@@ -42,7 +45,8 @@ function poserCookie(res: import("express").Response, jeton: string, expireLe: D
 // --- Initialisation ---------------------------------------------------------
 
 const InitialisationSchema = z.object({
-  etablissement: z.string().min(1),
+  /** Ignoré si un établissement existe déjà : le compte s'y rattache. */
+  etablissement: z.string().min(1).optional(),
   quota_mensuel_bilans: z.number().int().positive().optional(),
   nom: z.string().min(1),
   prenom: z.string().min(1),
@@ -58,7 +62,7 @@ const InitialisationSchema = z.object({
  * enregistrement, la route ne peut plus rien créer, quel que soit l'appelant.
  */
 authRouter.post("/api/auth/initialisation", async (req, res) => {
-  if (!(await aucunUtilisateur())) {
+  if (!(await aucunCompteUtilisable())) {
     return res.status(409).json({
       error: "L'application est déjà initialisée. Connectez-vous.",
     });
@@ -76,10 +80,23 @@ authRouter.post("/api/auth/initialisation", async (req, res) => {
     return res.status(400).json({ error: probleme });
   }
 
-  const etablissement = await creerEtablissement(
-    parsed.data.etablissement,
-    parsed.data.quota_mensuel_bilans
-  );
+  // Un établissement peut déjà exister — instance mise à jour depuis une
+  // version sans authentification, où bénéficiaires et bilans lui sont
+  // rattachés. En créer un second rendrait ces données invisibles au premier
+  // compte. On s'y rattache donc, plutôt que d'en ouvrir un autre.
+  const existants = await listerEtablissements();
+  let etablissement: { id: string };
+  if (existants.length > 0) {
+    etablissement = { id: existants[0].id };
+  } else {
+    if (!parsed.data.etablissement) {
+      return res.status(400).json({ error: "Nom de l'établissement requis." });
+    }
+    etablissement = await creerEtablissement(
+      parsed.data.etablissement,
+      parsed.data.quota_mensuel_bilans
+    );
+  }
 
   const utilisateur = await creerUtilisateur({
     nom: parsed.data.nom,
@@ -103,18 +120,29 @@ authRouter.post("/api/auth/initialisation", async (req, res) => {
     etablissementId: etablissement.id,
     cibleType: "etablissement",
     cibleId: etablissement.id,
-    cibleLibelle: parsed.data.etablissement,
+    cibleLibelle: existants[0]?.nom ?? parsed.data.etablissement,
+    details: { etablissement_repris: existants.length > 0 },
     adresseIp: adresseIp(req),
   });
 
   return res.status(201).json({ utilisateur, etablissement });
 });
 
-/** L'interface a besoin de savoir s'il faut proposer l'initialisation. */
+/**
+ * L'interface a besoin de savoir s'il faut proposer la mise en service, et le
+ * cas échéant si un établissement préexiste — auquel cas elle ne redemande pas
+ * son nom.
+ */
 authRouter.get("/api/auth/etat", async (req, res) => {
+  const initialise = !(await aucunCompteUtilisable());
+  const existants = initialise ? [] : await listerEtablissements();
+
   res.json({
-    initialise: !(await aucunUtilisateur()),
+    initialise,
     utilisateur: req.utilisateur ?? null,
+    etablissement_existant: existants[0]
+      ? { id: existants[0].id, nom: existants[0].nom }
+      : null,
   });
 });
 

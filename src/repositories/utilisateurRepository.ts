@@ -111,10 +111,21 @@ export async function desactiverUtilisateur(
   return (rowCount ?? 0) > 0;
 }
 
-/** Aucun compte en base : l'application n'a pas encore été initialisée. */
-export async function aucunUtilisateur(): Promise<boolean> {
+/**
+ * Personne ne peut se connecter : l'application n'est pas encore utilisable.
+ *
+ * On compte les comptes **dotés d'un mot de passe**, et non les lignes de la
+ * table. Les comptes créés avant l'authentification n'en ont pas : les compter
+ * fermerait l'écran de mise en service alors qu'aucun d'eux ne permet
+ * d'entrer, et l'instance resterait inaccessible pour toujours.
+ *
+ * La garantie de sécurité tient toujours : dès qu'un compte utilisable existe,
+ * la mise en service est close.
+ */
+export async function aucunCompteUtilisable(): Promise<boolean> {
   const { rows } = await pool.query<{ total: string }>(
-    `SELECT count(*)::text AS total FROM utilisateurs`
+    `SELECT count(*)::text AS total FROM utilisateurs
+     WHERE mot_de_passe_hash IS NOT NULL AND actif = TRUE`
   );
   return rows[0].total === "0";
 }

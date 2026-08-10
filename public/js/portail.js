@@ -12,12 +12,26 @@ import { $, statut } from "./ui.js";
  * Affiche le portail et résout quand une session est ouverte.
  * @returns {Promise<object>} l'utilisateur connecté
  */
-export function ouvrirPortail({ initialise }) {
+export function ouvrirPortail({ initialise, etablissementExistant }) {
   $("portail").hidden = false;
   $("form-connexion").hidden = initialise === false;
   $("form-initialisation").hidden = initialise !== false;
 
-  const premierChamp = initialise === false ? "init-etablissement" : "connexion-email";
+  // Instance mise à jour depuis une version sans authentification :
+  // l'établissement et ses bénéficiaires existent déjà, le compte s'y
+  // rattache. Redemander son nom laisserait croire qu'on en ouvre un second.
+  const repris = Boolean(etablissementExistant);
+  $("init-etablissement-champ").hidden = repris;
+  $("init-quota-champ").hidden = repris;
+  $("init-rappel-etablissement").hidden = !repris;
+  if (repris) {
+    $("init-rappel-etablissement").textContent =
+      `Ce compte sera rattaché à l'établissement existant « ${etablissementExistant.nom} », ` +
+      "avec ses bénéficiaires et ses bilans.";
+  }
+
+  const premierChamp =
+    initialise === false ? (repris ? "init-prenom" : "init-etablissement") : "connexion-email";
   $(premierChamp).focus();
 
   return new Promise((resoudre) => {
@@ -53,13 +67,15 @@ export function ouvrirPortail({ initialise }) {
       const quota = $("init-quota").value.trim();
 
       const corps = {
-        etablissement: $("init-etablissement").value.trim(),
         nom: $("init-nom").value.trim(),
         prenom: $("init-prenom").value.trim(),
         email: $("init-email").value.trim(),
         mot_de_passe: $("init-mot-de-passe").value,
       };
-      if (quota) {
+      if (!$("init-etablissement-champ").hidden) {
+        corps.etablissement = $("init-etablissement").value.trim();
+      }
+      if (quota && !$("init-quota-champ").hidden) {
         const valeur = Number(quota);
         if (!Number.isInteger(valeur) || valeur < 1) {
           statut(retour, "Le quota doit être un nombre entier d'au moins 1.", "erreur");

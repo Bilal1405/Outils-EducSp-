@@ -21,6 +21,18 @@ export async function getEtablissementById(
   return rows[0] ?? null;
 }
 
+/**
+ * Établissements déjà enregistrés. Sert à la mise en service : s'il en existe
+ * déjà un, le premier compte doit s'y rattacher plutôt que d'en créer un
+ * second, sans quoi les bénéficiaires déjà saisis deviendraient invisibles.
+ */
+export async function listerEtablissements(): Promise<Etablissement[]> {
+  const { rows } = await pool.query<Etablissement>(
+    `SELECT ${COLONNES} FROM etablissements ORDER BY nom`
+  );
+  return rows;
+}
+
 export async function creerEtablissement(
   nom: string,
   quotaMensuelBilans?: number
