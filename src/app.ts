@@ -9,6 +9,8 @@ import {
   protegerCsrf,
 } from "./middleware/authentification";
 import { journalRequetes } from "./middleware/journalRequetes";
+import { statiqueCompresse } from "./middleware/statique";
+import { amorcageRouter } from "./routes/amorcage";
 import { assistanceRouter } from "./routes/assistance";
 import { authRouter } from "./routes/auth";
 import { bilansRouter } from "./routes/bilans";
@@ -107,7 +109,11 @@ export function createApp() {
     }
   });
 
-  app.use(express.static(path.join(racineProjet(__dirname), "public")));
+  // Les fichiers texte passent par le middleware de compression ; tout le
+  // reste (images, polices locales, binaires) retombe sur `express.static`.
+  const dossierPublic = path.join(racineProjet(__dirname), "public");
+  app.use(statiqueCompresse(dossierPublic));
+  app.use(express.static(dossierPublic));
 
   // Ordre déterminant. `authentifier` résout la session pour tout le monde ;
   // `protegerCsrf` s'applique à toute écriture, y compris la connexion ; puis
@@ -121,6 +127,7 @@ export function createApp() {
   app.use("/api", exigerAuthentification);
 
   app.use(schemaRouter);
+  app.use(amorcageRouter);
   app.use(assistanceRouter);
   app.use(etablissementsRouter);
   app.use(patientsRouter);

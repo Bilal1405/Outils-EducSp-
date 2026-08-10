@@ -95,8 +95,11 @@ export function afficherQuota(quota) {
 
   $("quota-detail").textContent =
     restant === 0
-      ? `Quota mensuel atteint : ${quota.bilans_generes} bilan(s) ce mois-ci sur ${total}. Aucun nouveau bilan avant le mois prochain.`
-      : `${quota.bilans_generes} bilan(s) ouverts ce mois-ci sur ${total} autorisés.`;
+      // Le champ s'appelle `consomme` côté serveur ; `bilans_generes` est le
+      // nom de la colonne SQL, jamais celui de la réponse — il affichait
+      // « undefined bilan(s) ».
+      ? `Quota mensuel atteint : ${quota.consomme} bilan(s) ce mois-ci sur ${total}. Aucun nouveau bilan avant le mois prochain.`
+      : `${quota.consomme} bilan(s) ouverts ce mois-ci sur ${total} autorisés.`;
 }
 
 export async function rafraichirQuota() {
@@ -109,25 +112,29 @@ export async function rafraichirQuota() {
   }
 }
 
-export async function chargerEtablissement() {
-  etat.etablissement = await api.etablissement();
+/**
+ * Rendu à partir de données déjà en main. Séparé du chargement pour que
+ * l'amorçage, qui reçoit tout en une réponse, n'ait pas à redemander au
+ * serveur ce qu'il vient de recevoir.
+ */
+export function appliquerEtablissement(etablissement) {
+  etat.etablissement = etablissement;
 
-  $("etab-nom").value = etat.etablissement.nom || "";
-  $("etab-adresse").value = etat.etablissement.adresse || "";
-  $("etab-telephone").value = etat.etablissement.telephone || "";
-  $("etab-email").value = etat.etablissement.email || "";
-  $("etab-quota").value = etat.etablissement.quota_mensuel_bilans || "";
+  $("etab-nom").value = etablissement.nom || "";
+  $("etab-adresse").value = etablissement.adresse || "";
+  $("etab-telephone").value = etablissement.telephone || "";
+  $("etab-email").value = etablissement.email || "";
+  $("etab-quota").value = etablissement.quota_mensuel_bilans || "";
 
   majBandeau();
-  await rafraichirQuota();
 }
 
 // --- Équipe ---
 
-export async function chargerEquipe() {
+export function appliquerEquipe(utilisateurs) {
   if (!estCoordinateur()) return;
 
-  etat.utilisateurs = await api.listerUtilisateurs();
+  etat.utilisateurs = utilisateurs;
   const liste = $("liste-equipe");
   vider(liste);
 
@@ -159,6 +166,11 @@ export async function chargerEquipe() {
       ])
     );
   }
+}
+
+export async function chargerEquipe() {
+  if (!estCoordinateur()) return;
+  appliquerEquipe(await api.listerUtilisateurs());
 }
 
 async function desactiver(membre) {

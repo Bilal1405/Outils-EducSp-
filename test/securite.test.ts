@@ -56,8 +56,15 @@ vi.mock("../src/services/sessionService", async (importOriginal) => ({
   fermerSessionsDe: vi.fn(),
 }));
 
-import { getPatientById, supprimerPatient } from "../src/repositories/patientRepository";
+import {
+  getPatientById,
+  listPatients,
+  supprimerPatient,
+} from "../src/repositories/patientRepository";
 import { getBilanById } from "../src/repositories/bilanRepository";
+import { getEtablissementById } from "../src/repositories/etablissementRepository";
+import { listUtilisateurs } from "../src/repositories/utilisateurRepository";
+import { getQuotaStatus } from "../src/services/quotaService";
 import { resoudreSession } from "../src/services/sessionService";
 import { createApp } from "../src/app";
 import { bouchonnerSession, connecte, JETON_TEST } from "./aide/session";
@@ -80,6 +87,7 @@ describe("aucune session", () => {
   });
 
   const routesLecture = [
+    "/api/amorcage",
     "/api/patients",
     "/api/patients/patient-1",
     "/api/patients/patient-1/bilans",
@@ -186,6 +194,57 @@ describe("cloisonnement par établissement", () => {
 
     const { listPatients } = await import("../src/repositories/patientRepository");
     expect(listPatients).toHaveBeenCalledWith("etab-1");
+  });
+});
+
+/**
+ * L'amorçage rassemble en une réponse ce que cinq routes servaient séparément.
+ * Regrouper des lectures ne doit pas relâcher ce qui les bornait : c'est
+ * exactement le genre de route où un établissement pourrait fuir vers un
+ * autre sans que rien ne le signale à l'écran.
+ */
+describe("amorçage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    reinitialiserLimitation();
+    bouchonnerSession(resoudreSession);
+    vi.mocked(getEtablissementById).mockResolvedValue({
+      id: "etab-1",
+      nom: "PCPE",
+      adresse: "",
+      telephone: "",
+      email: "",
+      quota_mensuel_bilans: 50,
+    });
+  });
+
+  it("borne toutes ses lectures à l'établissement de la session", async () => {
+    const res = await connecte(request(app).get("/api/amorcage"));
+
+    expect(res.status).toBe(200);
+    expect(getEtablissementById).toHaveBeenCalledWith("etab-1");
+    expect(listPatients).toHaveBeenCalledWith("etab-1");
+    expect(getQuotaStatus).toHaveBeenCalledWith("etab-1");
+  });
+
+  it("ne lit pas la liste des comptes pour un éducateur", async () => {
+    // Ne pas la lire du tout, plutôt que la lire puis l'ôter de la réponse :
+    // le second oubli est silencieux.
+    bouchonnerSession(resoudreSession, { role: "educateur" });
+
+    const res = await connecte(request(app).get("/api/amorcage"));
+
+    expect(res.status).toBe(200);
+    expect(res.body.equipe).toBeNull();
+    expect(listUtilisateurs).not.toHaveBeenCalled();
+  });
+
+  it("la lit pour un coordinateur", async () => {
+    bouchonnerSession(resoudreSession, { role: "coordinateur" });
+
+    await connecte(request(app).get("/api/amorcage"));
+
+    expect(listUtilisateurs).toHaveBeenCalledWith("etab-1");
   });
 });
 

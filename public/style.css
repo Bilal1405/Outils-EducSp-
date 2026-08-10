@@ -948,7 +948,11 @@ details[open] > summary {
   font-size: var(--t-sm);
   color: var(--texte-doux);
   cursor: pointer;
-  transition: all var(--transition);
+  /* Les trois propriétés réellement animées, plutôt que `all` : ce dernier
+     anime aussi ce qui change la mise en page, et fait recalculer la page à
+     chaque survol. */
+  transition: background-color var(--transition), border-color var(--transition),
+    color var(--transition);
 }
 
 .puce:hover {

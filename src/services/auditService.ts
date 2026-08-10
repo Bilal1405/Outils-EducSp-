@@ -7,6 +7,12 @@ import { pool } from "../db";
  * un éducateur de travailler, mais elle doit se voir dans les logs du serveur.
  * Ce compromis est assumé — l'alternative, refuser l'action quand le journal
  * échoue, transformerait un incident d'écriture en interruption de service.
+ *
+ * Cette promesse n'était pas tenue : la fonction attendait l'`INSERT`, et tous
+ * ses appelants l'attendaient à leur tour, avant d'émettre la réponse. Chaque
+ * consultation d'un bilan payait donc un aller-retour de base supplémentaire,
+ * sur le chemin critique, pour une écriture dont personne n'attend le
+ * résultat. Elle rend maintenant la main immédiatement.
  */
 
 export const ACTIONS = [
@@ -44,7 +50,11 @@ export interface EntreeAudit {
   adresseIp?: string;
 }
 
-export async function journaliser(entree: EntreeAudit): Promise<void> {
+/**
+ * Écriture effective. Exportée pour les tests, qui ont besoin d'attendre ce
+ * que l'application, elle, n'attend pas.
+ */
+export async function ecrireEntree(entree: EntreeAudit): Promise<void> {
   try {
     await pool.query(
       `INSERT INTO audit_logs
@@ -67,6 +77,18 @@ export async function journaliser(entree: EntreeAudit): Promise<void> {
     // eslint-disable-next-line no-console
     console.error("[audit] écriture impossible", entree.action, err);
   }
+}
+
+/**
+ * Consigne une action. Rend la main sans attendre l'écriture — le processus
+ * étant durable, l'`INSERT` se termine après la réponse ; `ecrireEntree`
+ * absorbe déjà ses propres erreurs, il n'y a donc pas de rejet à récupérer.
+ *
+ * Reste `async` : les appelants l'attendent, et cet `await` ne coûte
+ * désormais qu'une micro-tâche.
+ */
+export async function journaliser(entree: EntreeAudit): Promise<void> {
+  void ecrireEntree(entree);
 }
 
 export interface LigneAudit {

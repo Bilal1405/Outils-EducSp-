@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import { Router } from "express";
+import type { Request, Response } from "express";
 import {
   DOMAINES_COMPETENCE,
   TYPES_COMPORTEMENT,
@@ -9,6 +11,32 @@ import { MODELES, LIBELLES_TYPE_BILAN, TYPES_BILAN } from "../schema/modelesBila
 export const schemaRouter = Router();
 
 /**
+ * Ces deux réponses ne dépendent ni de la session ni de la base : elles sont
+ * dérivées du code, donc identiques pour tout le monde et pour toute la durée
+ * de vie d'une version déployée. Les trames pèsent 16 Kio, retéléchargés à
+ * chaque ouverture de l'application.
+ *
+ * On les fige donc au démarrage et on les sert avec une empreinte de contenu :
+ * le navigateur redemande, le serveur répond « inchangé » en une centaine
+ * d'octets. `must-revalidate` plutôt qu'une durée de vie : une trame modifiée
+ * par un déploiement doit arriver au poste tout de suite, pas dans un an.
+ */
+function servirFige(corps: unknown) {
+  const charge = JSON.stringify(corps);
+  const etag = `"${createHash("sha1").update(charge).digest("base64url")}"`;
+
+  return (req: Request, res: Response) => {
+    res.setHeader("ETag", etag);
+    res.setHeader("Cache-Control", "private, max-age=0, must-revalidate");
+    if (req.header("if-none-match") === etag) {
+      return res.status(304).end();
+    }
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    return res.end(charge);
+  };
+}
+
+/**
  * Listes fermées du schéma bilan, publiées pour l'interface.
  *
  * L'écran de relecture propose ces valeurs dans des menus déroulants plutôt
@@ -17,13 +45,14 @@ export const schemaRouter = Router();
  * une seconde définition, vouée à diverger de `bilan.schema.ts` — qui reste la
  * source unique.
  */
-schemaRouter.get("/api/schema/bilan", (_req, res) => {
-  res.json({
+schemaRouter.get(
+  "/api/schema/bilan",
+  servirFige({
     domaines_competence: DOMAINES_COMPETENCE,
     types_comportement: TYPES_COMPORTEMENT,
     frequences_comportement: FREQUENCES_COMPORTEMENT,
-  });
-});
+  })
+);
 
 /**
  * Trames complètes des bilans Répit et Trimestriel : étapes, grilles de
@@ -34,12 +63,13 @@ schemaRouter.get("/api/schema/bilan", (_req, res) => {
  * à valider le contenu enregistré et à produire l'export .docx : une ligne
  * ajoutée à une grille doit apparaître dans les trois, ou nulle part.
  */
-schemaRouter.get("/api/schema/modeles", (_req, res) => {
-  res.json({
+schemaRouter.get(
+  "/api/schema/modeles",
+  servirFige({
     types: TYPES_BILAN.map((type) => ({
       type,
       libelle: LIBELLES_TYPE_BILAN[type],
     })),
     modeles: MODELES,
-  });
-});
+  })
+);

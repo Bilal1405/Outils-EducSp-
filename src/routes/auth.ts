@@ -20,6 +20,7 @@ import {
 } from "../services/motDePasse";
 import {
   NOM_COOKIE,
+  NOM_COOKIE_TEMOIN,
   fermerSession,
   fermerSessionsDe,
   ouvrirSession,
@@ -41,6 +42,21 @@ function poserCookie(res: import("express").Response, jeton: string, expireLe: D
     expires: expireLe,
     path: "/",
   });
+
+  // Témoin sans secret, volontairement lisible par la page (cf. sessionService).
+  res.cookie(NOM_COOKIE_TEMOIN, "1", {
+    httpOnly: false,
+    sameSite: "lax",
+    secure: config.env === "production",
+    expires: expireLe,
+    path: "/",
+  });
+}
+
+/** Les deux cookies vont toujours ensemble : un témoin orphelin mentirait. */
+function retirerCookies(res: import("express").Response) {
+  res.clearCookie(NOM_COOKIE, { path: "/" });
+  res.clearCookie(NOM_COOKIE_TEMOIN, { path: "/" });
 }
 
 // --- Initialisation ---------------------------------------------------------
@@ -241,7 +257,7 @@ authRouter.post("/api/auth/deconnexion", async (req, res) => {
       });
     }
   }
-  res.clearCookie(NOM_COOKIE, { path: "/" });
+  retirerCookies(res);
   return res.status(204).end();
 });
 
@@ -295,7 +311,7 @@ authRouter.post(
       adresseIp: adresseIp(req),
     });
 
-    res.clearCookie(NOM_COOKIE, { path: "/" });
+    retirerCookies(res);
     return res.status(204).end();
   }
 );

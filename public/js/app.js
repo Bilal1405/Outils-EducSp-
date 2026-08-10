@@ -18,14 +18,15 @@ import {
 } from "./ui.js";
 import {
   initReglages,
-  chargerEtablissement,
-  chargerEquipe,
+  appliquerEtablissement,
+  appliquerEquipe,
+  afficherQuota,
   estCoordinateur,
   majBandeau,
 } from "./reglages.js";
 import {
   initBeneficiaires,
-  chargerBeneficiaires,
+  appliquerBeneficiaires,
   dessinerProfil,
 } from "./beneficiaires.js";
 import {
@@ -221,7 +222,11 @@ function signalerPanne(err) {
   $("app-alerte").hidden = false;
 }
 
-async function demarrer() {
+/**
+ * Branche l'interface, puis l'alimente avec les données déjà reçues.
+ * `donnees` est le triplet rendu par `lancerAmorcage()`.
+ */
+function demarrer(donnees) {
   initReglages();
   initBeneficiaires();
   initRedaction();
@@ -286,18 +291,21 @@ async function demarrer() {
 
   sur("vue", montrerVue);
 
-  try {
-    etat.schema = await api.schemaBilan();
-    const trames = await api.modeles();
-    etat.modeles = trames.modeles;
-    etat.typesBilan = trames.types;
-    await chargerEtablissement();
-    await chargerEquipe();
-    await chargerBeneficiaires();
-  } catch (err) {
-    signalerPanne(err);
-    return;
+  const [amorce, schema, trames] = donnees;
+
+  etat.schema = schema;
+  etat.modeles = trames.modeles;
+  etat.typesBilan = trames.types;
+
+  // Le serveur fait autorité sur le rôle : il a pu changer depuis
+  // l'ouverture de la session.
+  etat.utilisateur = amorce.utilisateur;
+  appliquerEtablissement(amorce.etablissement);
+  afficherQuota(amorce.quota);
+  if (amorce.equipe) {
+    appliquerEquipe(amorce.equipe);
   }
+  appliquerBeneficiaires(amorce.beneficiaires);
 
   $("suivi-btn").hidden = !estCoordinateur();
   $("suivi-btn").addEventListener("click", ouvrirTableauDeBord);
@@ -306,25 +314,75 @@ async function demarrer() {
 }
 
 /**
- * Séquence de démarrage : la session d'abord, l'application ensuite. Rien de
- * l'outil — ni la liste des bénéficiaires, ni les trames — n'est demandé au
- * serveur avant d'être authentifié.
+ * Les trois appels d'ouverture, lancés ensemble. Le contenu des deux routes de
+ * schéma ne change qu'entre deux versions déployées : le navigateur les
+ * revalide et s'entend répondre « inchangé » en une centaine d'octets.
+ */
+function lancerAmorcage() {
+  return Promise.all([api.amorcage(), api.schemaBilan(), api.modeles()]);
+}
+
+/**
+ * Une session a-t-elle des chances d'exister ? Le serveur pose un témoin sans
+ * secret à côté du cookie de session, qui lui reste inaccessible au
+ * JavaScript. Ce n'est pas un contrôle — le serveur refuse de toute façon ce
+ * qu'il doit refuser — mais il évite de partir chercher des données pour un
+ * visiteur qui n'est manifestement pas connecté.
+ */
+function sessionProbable() {
+  return document.cookie.split("; ").includes("session_presente=1");
+}
+
+/**
+ * Séquence de démarrage.
+ *
+ * Quand le témoin de session est là, on demande directement les données, sans
+ * commencer par « suis-je connecté ? ». Cette question coûtait un aller-retour
+ * complet à chaque ouverture, alors que sa réponse est « oui » dans la
+ * quasi-totalité des cas.
+ *
+ * La règle ne change pas pour autant : rien de l'outil n'est *obtenu* avant
+ * d'être authentifié. Ce n'est pas le navigateur qui décide de s'en priver —
+ * c'est le serveur qui refuse, et c'est la seule garantie qui vaille.
  */
 async function amorcer() {
-  let etatAuth;
-  try {
-    etatAuth = await api.etatAuth();
-  } catch (err) {
-    signalerPanne(err);
-    return;
+  let donnees = null;
+  if (sessionProbable()) {
+    try {
+      donnees = await lancerAmorcage();
+    } catch (err) {
+      // 401 : la session a été fermée entre-temps. L'écran de connexion prend
+      // le relais, sans que l'incident ait besoin d'être annoncé.
+      if (err.statut !== 401) {
+        signalerPanne(err);
+        return;
+      }
+    }
   }
 
-  etat.utilisateur =
-    etatAuth.utilisateur ||
-    (await ouvrirPortail({
-      initialise: etatAuth.initialise,
-      etablissementExistant: etatAuth.etablissement_existant,
-    }));
+  if (!donnees) {
+    let etatAuth;
+    try {
+      etatAuth = await api.etatAuth();
+    } catch (err) {
+      signalerPanne(err);
+      return;
+    }
+
+    etat.utilisateur =
+      etatAuth.utilisateur ||
+      (await ouvrirPortail({
+        initialise: etatAuth.initialise,
+        etablissementExistant: etatAuth.etablissement_existant,
+      }));
+
+    try {
+      donnees = await lancerAmorcage();
+    } catch (err) {
+      signalerPanne(err);
+      return;
+    }
+  }
 
   // L'application n'est révélée qu'une fois la session établie. La masquer
   // seulement à l'écran ne suffirait pas : elle resterait dans l'ordre de
@@ -332,7 +390,7 @@ async function amorcer() {
   $("entete").hidden = false;
   $("app").hidden = false;
   majBandeau();
-  await demarrer();
+  demarrer(donnees);
 }
 
 amorcer();

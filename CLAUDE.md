@@ -57,6 +57,19 @@ Contrainte d'écran : une étape de parcours guidé doit tenir dans 1366×768 sa
 défilement. Vérifiée par mesure en navigateur ; `test/modelesBilan.test.ts` borde
 le nombre de lignes de grille par étape. Scinder l'étape et remesurer si dépassé.
 
+Démarrage : l'interface ouvre par **un seul** aller-retour utile,
+`GET /api/amorcage` (établissement, quota, équipe, bénéficiaires), lancé en
+parallèle des deux routes de schéma — qui répondent 304 grâce à une empreinte
+figée. Mesuré dans Chromium à 100 ms de latence : 556 ms à froid, contre
+1342 ms quand ces appels étaient enchaînés. Ne pas réintroduire d'appel
+supplémentaire dans cette séquence : les ajouter à `/api/amorcage`, ou les
+différer jusqu'à l'écran qui en a besoin.
+
+Les fichiers de `public/` passent par `src/middleware/statique.ts` : brotli ou
+gzip selon le navigateur, mémorisé en RAM, `ETag` sur le contenu servi. Tout est
+revalidé à chaque chargement sauf `/vendor/`, figé par sa version. 63 Kio
+transférés au premier chargement au lieu de 197.
+
 > `SPEC-moteur-bilan.md` décrit un `audioFileId` transcrit par un Whisper
 > self-hosted côté serveur. Remplacé : la transcription se fait dans le
 > navigateur, le corps de requête ne porte plus qu'un `texte` et un marqueur
@@ -69,7 +82,9 @@ par en-tête, cloisonnement imposé côté serveur — l'établissement vient
 cette frontière : ne pas ajouter de route sans l'y couvrir.
 
 Journal d'audit (`audit_logs`) : lectures comprises. Effacement d'un
-bénéficiaire en cascade, la trace survit à l'effacement.
+bénéficiaire en cascade, la trace survit à l'effacement. L'écriture ne bloque
+pas la réponse (`journaliser` rend la main aussitôt) : ne pas la remettre sur
+le chemin critique, et ne pas en déduire l'issue d'une action.
 
 Reste : transfert des comptes-rendus vers Cerebras (États-Unis) — non traité à
 la demande explicite de l'utilisateur ; chiffrement de `contenu` au repos ;

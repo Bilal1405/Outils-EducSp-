@@ -21,6 +21,19 @@ import type { Utilisateur } from "../repositories/utilisateurRepository";
 
 export const NOM_COOKIE = "session_educsp";
 
+/**
+ * Témoin lisible par la page, posé et retiré en même temps que le cookie de
+ * session — qui, lui, reste inaccessible au JavaScript.
+ *
+ * Il ne contient aucun jeton et n'ouvre aucun droit : le serveur ne le regarde
+ * jamais. Il répond à une seule question, côté navigateur : « ai-je une chance
+ * d'être connecté ? ». Sans lui, l'interface devait demander « qui suis-je ? »
+ * avant de demander ses données, soit un aller-retour complet ajouté à chaque
+ * ouverture ; en le posant, elle demande directement ses données, et n'essuie
+ * un refus que si la session a été fermée entre-temps.
+ */
+export const NOM_COOKIE_TEMOIN = "session_presente";
+
 /** Durée de vie d'une session : une journée de travail, renouvelée à l'usage. */
 const DUREE_HEURES = 12;
 

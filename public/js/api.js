@@ -86,6 +86,9 @@ export const api = {
       nouveau_mot_de_passe: nouveau,
     }),
 
+  // Tout ce qu'il faut pour afficher l'application, en un aller-retour.
+  amorcage: () => requete("/api/amorcage"),
+
   schemaBilan: () => requete("/api/schema/bilan"),
   modeles: () => requete("/api/schema/modeles"),
 

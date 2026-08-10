@@ -82,7 +82,15 @@ export function dessinerListe() {
 }
 
 export async function chargerBeneficiaires() {
-  etat.beneficiaires = await api.listerBeneficiaires();
+  appliquerBeneficiaires(await api.listerBeneficiaires());
+}
+
+/**
+ * Rendu à partir d'une liste déjà reçue : l'amorçage la tient de la réponse
+ * unique, il n'a pas à la redemander.
+ */
+export function appliquerBeneficiaires(beneficiaires) {
+  etat.beneficiaires = beneficiaires;
 
   // Le bénéficiaire ouvert peut ne plus appartenir à l'établissement courant.
   if (

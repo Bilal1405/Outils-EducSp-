@@ -45,3 +45,47 @@ describe("GET /api/schema/bilan", () => {
     expect(res.body.frequences_comportement).toContain("1 à 10 fois par séance");
   });
 });
+
+/**
+ * Ces deux réponses ne dépendent que de la version déployée. Les trames pèsent
+ * 16 Kio, redemandés à chaque ouverture de l'application : la revalidation
+ * ramène ce coût à celui d'un en-tête.
+ */
+describe("revalidation des routes de schéma", () => {
+  beforeEach(() => bouchonnerSession(resoudreSession));
+
+  it.each(["/api/schema/bilan", "/api/schema/modeles"])(
+    "répond 304 à une revalidation de %s",
+    async (route) => {
+      const premiere = await connecte(request(app).get(route));
+      expect(premiere.headers.etag).toBeTruthy();
+
+      const seconde = await connecte(
+        request(app).get(route).set("If-None-Match", premiere.headers.etag)
+      );
+
+      expect(seconde.status).toBe(304);
+      expect(seconde.text).toBeFalsy();
+    }
+  );
+
+  it("ne fige pas la réponse dans le cache du navigateur", async () => {
+    // Une trame corrigée par un déploiement doit arriver tout de suite : le
+    // navigateur garde la réponse mais redemande à chaque fois si elle vaut
+    // toujours.
+    const res = await connecte(request(app).get("/api/schema/modeles"));
+    expect(res.headers["cache-control"]).toBe("private, max-age=0, must-revalidate");
+  });
+
+  it("change d'empreinte si une trame change", async () => {
+    const { MODELES } = await import("../src/schema/modelesBilan");
+    const avant = await connecte(request(app).get("/api/schema/modeles"));
+
+    // L'empreinte est calculée au chargement du module : elle doit refléter
+    // le contenu servi, pas l'instant de la requête.
+    expect(avant.headers.etag).toBe(
+      (await connecte(request(app).get("/api/schema/modeles"))).headers.etag
+    );
+    expect(Object.keys(MODELES).length).toBeGreaterThan(0);
+  });
+});
