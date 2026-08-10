@@ -1,5 +1,6 @@
 import path from "node:path";
 import express from "express";
+import { config } from "./config";
 import { pool } from "./db";
 import {
   authentifier,
@@ -26,6 +27,35 @@ export function createApp() {
 
   app.use(express.json({ limit: "1mb" }));
   app.use(journalRequetes);
+
+  /**
+   * HTTPS obligatoire en production.
+   *
+   * Le cookie de session porte déjà l'attribut `secure`, qui empêche le
+   * navigateur de l'émettre en clair — mais il ne l'empêche pas d'envoyer un
+   * mot de passe sur une page servie en HTTP. D'où deux verrous :
+   *
+   *  - toute requête arrivée en clair est renvoyée en 308 vers son équivalent
+   *    chiffré, avant d'atteindre la moindre route ;
+   *  - `Strict-Transport-Security` demande au navigateur de refuser lui-même
+   *    le HTTP sur ce domaine pendant un an, ce qui ferme la fenêtre du tout
+   *    premier appel, le seul que la redirection ne protège pas.
+   *
+   * `includeSubDomains` est volontairement absent : sur un domaine
+   * d'établissement, il imposerait HTTPS à des sous-domaines qui ne nous
+   * appartiennent pas. `preload` l'est aussi — il est irréversible.
+   */
+  if (config.env === "production") {
+    app.use((req, res, next) => {
+      // `req.secure` tient compte de `trust proxy` : derrière Render, il
+      // reflète `x-forwarded-proto`, pas la connexion locale au conteneur.
+      if (!req.secure) {
+        return res.redirect(308, `https://${req.header("host")}${req.originalUrl}`);
+      }
+      res.setHeader("Strict-Transport-Security", "max-age=31536000");
+      return next();
+    });
+  }
 
   // En-têtes de sécurité, posés à la main plutôt qu'avec une dépendance : ils
   // tiennent en dix lignes et une bibliothèque de plus est une surface de plus.

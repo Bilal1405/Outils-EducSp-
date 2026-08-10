@@ -307,9 +307,22 @@ Trois manières, très inégales.
 
 ### 1. Déploiement Render — la seule adaptée à un usage réel
 
-Donne une adresse publique en HTTPS, accessible de n'importe où. C'est la
-configuration décrite ci-dessous : HTTPS de bout en bout, donc dictée vocale
-fonctionnelle et mots de passe protégés.
+Donne une adresse publique **en HTTPS**, accessible de n'importe où. Le
+certificat est émis et renouvelé par l'hébergeur : il n'y a rien à installer,
+ni à payer, ni à surveiller.
+
+Deux protections s'y ajoutent côté application, actives dès que
+`NODE_ENV=production` :
+
+- toute requête arrivée en clair est renvoyée vers son équivalent chiffré,
+  avant d'atteindre la moindre route ;
+- l'en-tête `Strict-Transport-Security` demande au navigateur de refuser
+  lui-même le HTTP sur ce domaine pendant un an. C'est ce qui ferme la fenêtre
+  du tout premier appel, le seul que la redirection ne protège pas.
+
+Pour une adresse à vos couleurs (`bilans.votre-structure.fr`), ajoutez le
+domaine dans Render → Settings → Custom Domain et créez l'enregistrement DNS
+indiqué : le certificat est émis automatiquement, sans étape supplémentaire.
 
 ### 2. Réseau local — pour essayer à deux postes
 
