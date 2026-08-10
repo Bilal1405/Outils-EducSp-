@@ -85,6 +85,14 @@
         Se connecter
       </button>
       <p id="connexion-statut" class="statut" role="status" aria-live="polite"></p>
+      <!-- Visible seulement tant que la mise en service reste possible : une
+           fois l'instance initialisée, ce chemin n'existe plus. -->
+      <p class="portail-bascule" id="vers-initialisation" hidden>
+        Première utilisation ?
+        <button type="button" class="btn-lien" id="vers-initialisation-btn">
+          Mettre l'outil en service
+        </button>
+      </p>
     </form>
 
     <form id="form-initialisation" class="formulaire" hidden>
@@ -125,6 +133,11 @@
         Créer et se connecter
       </button>
       <p id="init-statut" class="statut" role="status" aria-live="polite"></p>
+      <p class="portail-bascule">
+        <button type="button" class="btn-lien" id="vers-connexion-btn">
+          J'ai déjà un compte
+        </button>
+      </p>
     </form>
 
     <p class="portail-mention">

@@ -13,9 +13,35 @@ import { $, statut } from "./ui.js";
  * @returns {Promise<object>} l'utilisateur connecté
  */
 export function ouvrirPortail({ initialise, etablissementExistant }) {
+  const miseEnServicePossible = initialise === false;
+
+  /**
+   * Les deux formulaires sont accessibles tant que la mise en service reste
+   * ouverte, et l'on passe de l'un à l'autre.
+   *
+   * Sans cette bascule, quelqu'un qui a déjà ses identifiants n'avait aucun
+   * endroit où les saisir : l'écran de mise en service occupait toute la page.
+   * Le cas se produit sur une instance neuve où des comptes existent sans mot
+   * de passe, et lorsque deux personnes ouvrent la page en même temps — la
+   * seconde reçoit « l'application est déjà initialisée, connectez-vous »,
+   * consigne jusqu'ici impossible à suivre.
+   *
+   * Cela n'ouvre rien : la création du premier compte reste refusée par le
+   * serveur dès qu'un compte utilisable existe, quel que soit l'écran affiché.
+   */
+  function montrer(ecran) {
+    const connexion = ecran === "connexion";
+    $("form-connexion").hidden = !connexion;
+    $("form-initialisation").hidden = connexion;
+    $("vers-initialisation").hidden = !miseEnServicePossible;
+    $(connexion ? "connexion-email" : premierChampInitialisation()).focus();
+  }
+
   $("portail").hidden = false;
-  $("form-connexion").hidden = initialise === false;
-  $("form-initialisation").hidden = initialise !== false;
+  $("vers-connexion-btn").addEventListener("click", () => montrer("connexion"));
+  $("vers-initialisation-btn").addEventListener("click", () =>
+    montrer("initialisation")
+  );
 
   // Instance mise à jour depuis une version sans authentification :
   // l'établissement et ses bénéficiaires existent déjà, le compte s'y
@@ -30,9 +56,11 @@ export function ouvrirPortail({ initialise, etablissementExistant }) {
       "avec ses bénéficiaires et ses bilans.";
   }
 
-  const premierChamp =
-    initialise === false ? (repris ? "init-prenom" : "init-etablissement") : "connexion-email";
-  $(premierChamp).focus();
+  function premierChampInitialisation() {
+    return repris ? "init-prenom" : "init-etablissement";
+  }
+
+  montrer(miseEnServicePossible ? "initialisation" : "connexion");
 
   return new Promise((resoudre) => {
     $("form-connexion").addEventListener("submit", async (evenement) => {
@@ -92,7 +120,20 @@ export function ouvrirPortail({ initialise, etablissementExistant }) {
         $("portail").hidden = true;
         resoudre(utilisateur);
       } catch (err) {
-        statut(retour, err.message, "erreur");
+        // 409 : quelqu'un a mis l'instance en service entre l'affichage de
+        // cette page et l'envoi du formulaire. Le message du serveur dit
+        // « connectez-vous » — encore faut-il pouvoir le faire.
+        if (err.statut === 409) {
+          $("init-mot-de-passe").value = "";
+          montrer("connexion");
+          statut(
+            $("connexion-statut"),
+            "L'application vient d'être mise en service. Connectez-vous avec votre compte.",
+            "erreur"
+          );
+        } else {
+          statut(retour, err.message, "erreur");
+        }
       } finally {
         bouton.disabled = false;
       }

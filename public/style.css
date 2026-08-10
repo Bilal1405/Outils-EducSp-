@@ -2018,6 +2018,15 @@ dialog::backdrop {
   margin-bottom: 0.35rem;
 }
 
+/* Passage d'un formulaire d'entrée à l'autre. Centré et discret : c'est une
+   sortie de secours, pas l'action attendue. */
+.portail-bascule {
+  margin-top: 0.9rem;
+  text-align: center;
+  font-size: var(--t-sm);
+  color: var(--texte-doux);
+}
+
 .portail-mention {
   margin-top: 1.35rem;
   padding-top: 1rem;
