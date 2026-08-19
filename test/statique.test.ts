@@ -1,6 +1,7 @@
 import { mkdtemp, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { brotliCompressSync } from "node:zlib";
 import express from "express";
 import request from "supertest";
 import { describe, it, expect, beforeAll } from "vitest";
@@ -15,6 +16,8 @@ let racine: string;
 let app: express.Express;
 
 const CSS = ".a{color:red}".repeat(200); // ~2,6 Kio, largement compressible
+/** Contenu dont seule la forme compressée existe sur le disque. */
+const SOURCE_COMPRESSEE = "export const bibliotheque = 1;".repeat(50);
 
 beforeAll(async () => {
   racine = await mkdtemp(path.join(tmpdir(), "statique-"));
@@ -23,6 +26,10 @@ beforeAll(async () => {
   await writeFile(path.join(racine, "index.html"), "<p>page</p>".repeat(100));
   await mkdir(path.join(racine, "vendor"), { recursive: true });
   await writeFile(path.join(racine, "vendor", "lib.js"), "export const a = 1;");
+  await writeFile(
+    path.join(racine, "vendor", "compresse-seulement.js.br"),
+    brotliCompressSync(Buffer.from(SOURCE_COMPRESSEE))
+  );
   await writeFile(path.join(path.dirname(racine), "hors-racine.css"), "vole");
 
   app = express();
@@ -100,6 +107,33 @@ describe("service des fichiers statiques", () => {
     expect(res.status).toBe(200);
     expect(res.headers["content-encoding"]).toBe("br");
     expect(res.headers["content-type"]).toContain("text/html");
+  });
+
+  /**
+   * La bibliothèque de transcription n'est versionnée que compressée : sans
+   * ce repli, `/vendor/transformers.min.js` répondrait 404 sur une instance
+   * fraîchement clonée, et la dictée échouerait au premier clic.
+   */
+  describe("fichier versionné seulement sous forme compressée", () => {
+    it("le sert tel quel au navigateur qui accepte le brotli", async () => {
+      const res = await request(app)
+        .get("/vendor/compresse-seulement.js")
+        .set("Accept-Encoding", "br");
+
+      expect(res.status).toBe(200);
+      expect(res.headers["content-encoding"]).toBe("br");
+      expect(res.headers["content-type"]).toContain("javascript");
+    });
+
+    it("le décompresse pour celui qui ne l'accepte pas", async () => {
+      const res = await request(app)
+        .get("/vendor/compresse-seulement.js")
+        .set("Accept-Encoding", "");
+
+      expect(res.status).toBe(200);
+      expect(res.headers["content-encoding"]).toBeUndefined();
+      expect(res.text).toBe(SOURCE_COMPRESSEE);
+    });
   });
 
   it("laisse passer ce qu'il ne sait pas servir", async () => {

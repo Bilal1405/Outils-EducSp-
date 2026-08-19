@@ -8,11 +8,11 @@
  * suffirait à les exfiltrer. En servant le fichier depuis notre origine, le
  * navigateur ne charge jamais de code tiers.
  *
- * Pourquoi ne pas commiter le fichier : minifié, il contient des suites de
- * caractères que l'analyse de secrets de GitHub confond avec des clés d'API
- * (ce sont les noms de classes exportées par la bibliothèque, du type
- * `BlenderbotForConditionalGeneration`). Le télécharger à l'installation
- * évite ce faux positif tout en gardant le même résultat.
+ * Le fichier obtenu est versionné (cf public/vendor/README.md) : ce script
+ * sert à l'installer la première fois, à changer de version, et à vérifier son
+ * intégrité — pas à le fournir au moment du déploiement. Il l'a fait un temps,
+ * et une instance est partie en production sans lui, avec une dictée morte
+ * que rien ne signalait avant le premier clic sur le micro.
  *
  * La source est le registre npm — celui dont proviennent déjà toutes les
  * dépendances du projet, donc aucun tiers supplémentaire. L'intégrité est
@@ -21,7 +21,7 @@
  */
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { gunzipSync } from "node:zlib";
+import { brotliCompressSync, brotliDecompressSync, constants, gunzipSync } from "node:zlib";
 import path from "node:path";
 
 const VERSION = "4.2.0";
@@ -29,6 +29,14 @@ const SHA256 = "e74bd32ed4453369ebb0edcaa27f6bc6204004a949a0233cdb87b62dda8d6978
 const ARCHIVE = `https://registry.npmjs.org/@huggingface/transformers/-/transformers-${VERSION}.tgz`;
 const FICHIER_DANS_ARCHIVE = "package/dist/transformers.min.js";
 const DESTINATION = path.join("public", "vendor", "transformers.min.js");
+
+/**
+ * C'est cette forme-là qui est versionnée, et celle que le serveur envoie au
+ * navigateur (cf. src/middleware/statique.ts). Le fichier minifié, lui, reste
+ * un artefact local : l'analyse de secrets de GitHub le refuse, ses noms de
+ * classes ressemblant à des clés d'API.
+ */
+const DESTINATION_COMPRESSEE = `${DESTINATION}.br`;
 
 function empreinte(donnees) {
   return createHash("sha256").update(donnees).digest("hex");
@@ -71,13 +79,26 @@ function extraireDeArchive(tar, cheminVoulu) {
   return null;
 }
 
-/** Le fichier attendu est-il déjà en place ? Évite un téléchargement inutile. */
+/**
+ * La bibliothèque est-elle déjà là, dans l'une ou l'autre forme, et conforme ?
+ *
+ * Le contrôle porte sur le contenu, pas sur la présence : c'est ce qui permet
+ * à ce script de servir aussi de vérification d'intégrité, hors ligne, sur une
+ * copie du dépôt.
+ */
 async function dejaPresent() {
-  try {
-    return empreinte(await readFile(DESTINATION)) === SHA256;
-  } catch {
-    return false;
+  for (const fichier of [DESTINATION, DESTINATION_COMPRESSEE]) {
+    try {
+      const octets = await readFile(fichier);
+      const contenu = fichier.endsWith(".br") ? brotliDecompressSync(octets) : octets;
+      if (empreinte(contenu) === SHA256) {
+        return true;
+      }
+    } catch {
+      /* forme absente : on essaie la suivante */
+    }
   }
+  return false;
 }
 
 async function principal() {
@@ -114,8 +135,22 @@ async function principal() {
 
   await mkdir(path.dirname(DESTINATION), { recursive: true });
   await writeFile(DESTINATION, contenu);
+
+  // La forme compressée est produite ici plutôt qu'à la main : c'est elle qui
+  // part dans le dépôt, elle doit donc toujours correspondre au fichier
+  // vérifié à l'instant.
+  const compresse = brotliCompressSync(contenu, {
+    params: {
+      [constants.BROTLI_PARAM_QUALITY]: 11,
+      [constants.BROTLI_PARAM_SIZE_HINT]: contenu.length,
+    },
+  });
+  await writeFile(DESTINATION_COMPRESSEE, compresse);
+
   console.log(
-    `${DESTINATION} installé (${contenu.length} octets, empreinte vérifiée).`
+    `${DESTINATION} installé (${contenu.length} octets, empreinte vérifiée).\n` +
+      `${DESTINATION_COMPRESSEE} régénéré (${compresse.length} octets) — c'est ce ` +
+      `fichier qu'il faut commiter.`
   );
 }
 

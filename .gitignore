@@ -11,8 +11,10 @@ dist/
 # navigateur, plus rien n'est écrit ici).
 uploads/
 
-# Bibliothèque de transcription : téléchargée et vérifiée par
-# scripts/vendor-asr.mjs à chaque npm install (cf public/vendor/README.md).
+# Bibliothèque de transcription : c'est la forme compressée (.br) qui est
+# versionnée — l'analyse de secrets de GitHub refuse le fichier minifié, dont
+# les noms de classes ressemblent à des clés d'API. Le serveur sert le .br
+# directement (cf. src/middleware/statique.ts et public/vendor/README.md).
 public/vendor/transformers.min.js
 
 # Sauvegardes de base : contiennent des données de santé, jamais versionnées.

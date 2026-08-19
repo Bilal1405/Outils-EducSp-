@@ -44,7 +44,9 @@ function avertirSiDicteeIndisponible(): void {
     "vendor",
     "transformers.min.js"
   );
-  if (!existsSync(bibliotheque)) {
+  // C'est la forme compressée qui est versionnée ; le fichier minifié n'est
+  // qu'un artefact local. L'une ou l'autre suffit à servir la dictée.
+  if (!existsSync(bibliotheque) && !existsSync(`${bibliotheque}.br`)) {
     console.warn(
       "\n[dictée] public/vendor/transformers.min.js est absent : la dictée " +
         "vocale échouera au premier usage.\n          Corriger avec : npm run vendor:asr"

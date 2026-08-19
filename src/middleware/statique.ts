@@ -1,11 +1,17 @@
 import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { brotliCompress, gzip, constants as zlibConstants } from "node:zlib";
+import {
+  brotliCompress,
+  brotliDecompress,
+  gzip,
+  constants as zlibConstants,
+} from "node:zlib";
 import { promisify } from "node:util";
 import type { RequestHandler } from "express";
 
 const compresserBrotli = promisify(brotliCompress);
+const decompresserBrotli = promisify(brotliDecompress);
 const compresserGzip = promisify(gzip);
 
 /**
@@ -45,6 +51,33 @@ function encodageAccepte(entete: string | undefined): "br" | "gzip" | null {
   if (accepte.includes("br")) return "br";
   if (accepte.includes("gzip")) return "gzip";
   return null;
+}
+
+/**
+ * Corps à renvoyer, dans l'encodage demandé.
+ *
+ * Un fichier déjà versionné compressé (`…​.br`) est renvoyé tel quel au
+ * navigateur qui accepte le brotli : le décompresser pour le recompresser à
+ * l'identique ne servirait à rien. Il n'est décompressé que pour les clients
+ * qui ne savent pas le lire, et recompressé en gzip pour les rares qui ne
+ * connaissent que celui-là.
+ */
+async function corpsAServir(
+  fichier: string,
+  prcompresse: boolean,
+  encodage: "br" | "gzip" | null
+): Promise<Buffer> {
+  if (!prcompresse) {
+    const brut = await readFile(fichier);
+    return encodage ? compresser(brut, encodage) : brut;
+  }
+
+  const compresseSurDisque = await readFile(`${fichier}.br`);
+  if (encodage === "br") {
+    return compresseSurDisque;
+  }
+  const brut = await decompresserBrotli(compresseSurDisque);
+  return encodage ? compresser(brut, encodage) : brut;
 }
 
 async function compresser(corps: Buffer, encodage: "br" | "gzip"): Promise<Buffer> {
@@ -101,11 +134,20 @@ export function statiqueCompresse(racine: string): RequestHandler {
       return next();
     }
 
+    // Certains fichiers ne sont versionnés que sous leur forme compressée
+    // (cf. `public/vendor/README.md`) : la source d'origine peut donc être
+    // absente du disque sans que le fichier soit introuvable.
     let infos;
+    let prcompresse = false;
     try {
       infos = await stat(fichier);
     } catch {
-      return next();
+      try {
+        infos = await stat(`${fichier}.br`);
+        prcompresse = true;
+      } catch {
+        return next();
+      }
     }
     if (!infos.isFile()) {
       return next();
@@ -117,8 +159,7 @@ export function statiqueCompresse(racine: string): RequestHandler {
 
     let variante = cache.get(cle);
     if (!variante) {
-      const brut = await readFile(fichier);
-      const corps = encodage ? await compresser(brut, encodage) : brut;
+      const corps = await corpsAServir(fichier, prcompresse, encodage);
       variante = {
         corps,
         encodage: encodage ?? "",
