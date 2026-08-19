@@ -6,7 +6,13 @@ services:
     branch: claude/moteur-bilan-spec-nxjqrc
     # `--include=dev` est indispensable : avec NODE_ENV=production, npm omet
     # les dépendances de développement, et ni tsc ni tsx ne seraient installés.
-    buildCommand: npm ci --include=dev && npm run build
+    #
+    # `vendor:asr` est réappelé explicitement, sans son mode tolérant : le
+    # postinstall laisse passer un téléchargement raté pour ne pas bloquer une
+    # installation hors ligne, ce qui est le bon choix sur un poste — mais ici,
+    # cela déploierait une instance dont la dictée échoue au premier clic. Mieux
+    # vaut un déploiement en échec, visible tout de suite.
+    buildCommand: npm ci --include=dev && npm run vendor:asr && npm run build
     # Migration exécutée depuis le JavaScript compilé : tsx n'a pas à être
     # présent au démarrage.
     startCommand: npm run migrate:prod && npm start

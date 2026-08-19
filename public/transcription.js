@@ -93,13 +93,62 @@ export function chargementEnCours() {
  * le modèle n'est chargé qu'une fois par onglet, les dictées suivantes sont
  * immédiates.
  */
+/**
+ * Traduit une panne de chargement en quelque chose qu'on puisse traiter.
+ *
+ * `fetch` échoue avec un laconique « Failed to fetch » aussi bien quand le
+ * poste est hors ligne que quand notre propre politique de sécurité refuse la
+ * connexion. La distinction n'est visible que dans la console du navigateur,
+ * là où personne ne va regarder : l'éducateur voit un message opaque et
+ * conclut que la dictée est cassée. On l'écrit donc en clair.
+ */
+function expliquerEchec(err, urisBloquees) {
+  const message = String(err && err.message ? err.message : err);
+
+  if (urisBloquees.length > 0) {
+    return (
+      "le chargement a été refusé par la politique de sécurité de " +
+      `l'application (${urisBloquees[0]}). C'est un réglage du serveur, pas ` +
+      "une manipulation de votre part : signalez-le."
+    );
+  }
+  if (message.includes("dynamically imported module")) {
+    return (
+      "le module de dictée est absent du serveur. Il s'installe avec " +
+      "`npm run vendor:asr` ; signalez-le, la correction est côté serveur."
+    );
+  }
+  if (message.includes("Failed to fetch") || message.includes("NetworkError")) {
+    return (
+      "le téléchargement du modèle n'a pas abouti. Vérifiez la connexion " +
+      "internet du poste, puis réessayez — la reprise ne repart pas de zéro."
+    );
+  }
+  return message;
+}
+
 function chargerTranscripteur(onProgression) {
   if (transcripteurPromise) {
     return transcripteurPromise;
   }
 
+  // Une violation de CSP ne remonte pas dans l'exception : elle n'est
+  // observable que par cet événement. On l'écoute le temps du chargement pour
+  // pouvoir nommer la cause.
+  const urisBloquees = [];
+  const noterViolation = (evenement) => urisBloquees.push(evenement.blockedURI);
+  document.addEventListener("securitypolicyviolation", noterViolation);
+
   transcripteurPromise = (async () => {
-    const { pipeline, env } = await import(BIBLIOTHEQUE);
+    let pipeline;
+    let env;
+    try {
+      ({ pipeline, env } = await import(BIBLIOTHEQUE));
+    } catch (err) {
+      // Cas typique : `public/vendor/transformers.min.js` absent du serveur,
+      // le fichier n'étant pas versionné mais récupéré à l'installation.
+      throw new Error(expliquerEchec(err, urisBloquees));
+    }
 
     // Les poids viennent du Hub ; aucun modèle n'est servi depuis notre origine
     // par défaut (cf. README pour basculer en local).
@@ -127,14 +176,18 @@ function chargerTranscripteur(onProgression) {
         derniereErreur = err;
       }
     }
-    throw derniereErreur;
+    throw new Error(expliquerEchec(derniereErreur, urisBloquees));
   })();
 
   // Un échec de chargement ne doit pas condamner l'onglet : on repart de zéro
   // au prochain essai.
-  transcripteurPromise.catch(() => {
-    transcripteurPromise = null;
-  });
+  transcripteurPromise
+    .catch(() => {
+      transcripteurPromise = null;
+    })
+    .finally(() => {
+      document.removeEventListener("securitypolicyviolation", noterViolation);
+    });
 
   return transcripteurPromise;
 }

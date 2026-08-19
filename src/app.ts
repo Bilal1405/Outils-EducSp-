@@ -10,6 +10,7 @@ import {
 } from "./middleware/authentification";
 import { journalRequetes } from "./middleware/journalRequetes";
 import { statiqueCompresse } from "./middleware/statique";
+import { POLITIQUE_CSP } from "./securite/csp";
 import { amorcageRouter } from "./routes/amorcage";
 import { assistanceRouter } from "./routes/assistance";
 import { authRouter } from "./routes/auth";
@@ -73,23 +74,10 @@ export function createApp() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader("Referrer-Policy", "same-origin");
-    // Tout vient de notre origine : ni CDN, ni script distant. La transcription
-    // charge son moteur WebAssembly et ses poids depuis des tiers, d'où les
-    // exceptions ciblées sur `connect-src` et `worker-src`.
-    res.setHeader(
-      "Content-Security-Policy",
-      [
-        "default-src 'self'",
-        "img-src 'self' data:",
-        "style-src 'self' 'unsafe-inline'",
-        "script-src 'self' 'wasm-unsafe-eval'",
-        "worker-src 'self' blob:",
-        "connect-src 'self' https://huggingface.co https://cdn.jsdelivr.net",
-        "frame-ancestors 'none'",
-        "base-uri 'self'",
-        "form-action 'self'",
-      ].join("; ")
-    );
+    // Tout vient de notre origine, à l'exception de ce dont la dictée vocale a
+    // besoin. Chaque entrée est justifiée dans `securite/csp.ts` — s'y référer
+    // avant d'en ajouter ou d'en retirer une.
+    res.setHeader("Content-Security-Policy", POLITIQUE_CSP);
     next();
   });
 

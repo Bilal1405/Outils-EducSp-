@@ -1,5 +1,8 @@
-import { createApp } from "./app";
+import { existsSync } from "node:fs";
 import { networkInterfaces } from "node:os";
+import path from "node:path";
+import { createApp } from "./app";
+import { racineProjet } from "./chemins";
 import { config, validerConfigurationDemarrage } from "./config";
 import { pool } from "./db";
 
@@ -26,11 +29,35 @@ function adressesJoignables(): string[] {
   return adresses;
 }
 
+/**
+ * La bibliothèque de transcription n'est pas versionnée : elle est récupérée à
+ * l'installation, et ce téléchargement est volontairement tolérant à l'échec
+ * pour ne pas bloquer une installation hors ligne. Le prix de cette tolérance
+ * est qu'une instance peut démarrer sans elle, la panne n'apparaissant qu'au
+ * premier clic sur le micro, sous forme d'erreur de chargement. Autant le dire
+ * ici, une fois, plutôt que de le laisser découvrir en entretien.
+ */
+function avertirSiDicteeIndisponible(): void {
+  const bibliotheque = path.join(
+    racineProjet(__dirname),
+    "public",
+    "vendor",
+    "transformers.min.js"
+  );
+  if (!existsSync(bibliotheque)) {
+    console.warn(
+      "\n[dictée] public/vendor/transformers.min.js est absent : la dictée " +
+        "vocale échouera au premier usage.\n          Corriger avec : npm run vendor:asr"
+    );
+  }
+}
+
 const server = app.listen(config.port, () => {
   console.log("Serveur démarré. Adresses :");
   for (const adresse of adressesJoignables()) {
     console.log(`  ${adresse}`);
   }
+  avertirSiDicteeIndisponible();
   if (config.env !== "production") {
     console.log(
       "\nDepuis un autre poste, en HTTP : la dictée vocale ne fonctionnera pas\n" +
