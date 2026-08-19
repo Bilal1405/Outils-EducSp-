@@ -1,5 +1,5 @@
+import { creerRouteur } from "../routeurAsync";
 import { createHash } from "node:crypto";
-import { Router } from "express";
 import type { Request, Response } from "express";
 import {
   DOMAINES_COMPETENCE,
@@ -8,7 +8,7 @@ import {
 } from "../schema/bilan.schema";
 import { MODELES, LIBELLES_TYPE_BILAN, TYPES_BILAN } from "../schema/modelesBilan";
 
-export const schemaRouter = Router();
+export const schemaRouter = creerRouteur();
 
 /**
  * Ces deux réponses ne dépendent ni de la session ni de la base : elles sont

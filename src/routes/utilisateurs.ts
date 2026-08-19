@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { creerRouteur } from "../routeurAsync";
 import { z } from "zod";
 import {
   creerUtilisateur,
@@ -17,7 +17,7 @@ import {
   libelle,
 } from "../middleware/authentification";
 
-export const utilisateursRouter = Router();
+export const utilisateursRouter = creerRouteur();
 
 /** Collègues de l'établissement. Sert à afficher qui a rédigé quel bilan. */
 utilisateursRouter.get("/api/utilisateurs", async (req, res) => {

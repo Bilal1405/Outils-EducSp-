@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { creerRouteur } from "../routeurAsync";
 import { z } from "zod";
 import { generateBilan, BilanGenerationError } from "../services/bilanGenerator";
 import { getPatientById } from "../repositories/patientRepository";
@@ -25,7 +25,7 @@ import {
   libelle,
 } from "../middleware/authentification";
 
-export const bilansRouter = Router();
+export const bilansRouter = creerRouteur();
 
 /**
  * La génération est l'appel le plus coûteux de l'application. Le quota mensuel

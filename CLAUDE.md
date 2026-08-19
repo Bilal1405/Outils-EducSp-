@@ -81,6 +81,13 @@ par en-tête, cloisonnement imposé côté serveur — l'établissement vient
 **toujours** de la session, jamais de la requête. `test/securite.test.ts` borde
 cette frontière : ne pas ajouter de route sans l'y couvrir.
 
+Toutes les routes passent par `creerRouteur()` (`src/routeurAsync.ts`), jamais
+par `Router()` d'Express : sans cela, un rejet de promesse dans un gestionnaire
+`async` ne va pas au gestionnaire d'erreur mais termine le processus — une
+coupure de base faisait tomber l'application entière au lieu de rendre une
+requête en erreur. `test/asynchrone.test.ts` refuse tout fichier de routes qui
+s'en écarte.
+
 Journal d'audit (`audit_logs`) : lectures comprises. Effacement d'un
 bénéficiaire en cascade, la trace survit à l'effacement. L'écriture ne bloque
 pas la réponse (`journaliser` rend la main aussitôt) : ne pas la remettre sur

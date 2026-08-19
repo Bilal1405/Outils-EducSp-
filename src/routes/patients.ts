@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { creerRouteur } from "../routeurAsync";
 import { z } from "zod";
 import {
   listPatients,
@@ -15,7 +15,7 @@ import {
   libelle,
 } from "../middleware/authentification";
 
-export const patientsRouter = Router();
+export const patientsRouter = creerRouteur();
 
 /**
  * Toutes les routes sont bornées à l'établissement de la session.

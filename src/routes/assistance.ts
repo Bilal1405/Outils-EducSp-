@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { creerRouteur } from "../routeurAsync";
 import { z } from "zod";
 import {
   reformulerCommentaire,
@@ -8,7 +8,7 @@ import { limiter } from "../middleware/limitation";
 import { journaliser } from "../services/auditService";
 import { adresseIp, libelle } from "../middleware/authentification";
 
-export const assistanceRouter = Router();
+export const assistanceRouter = creerRouteur();
 
 /**
  * Plafond large : un bilan de répit compte une douzaine de zones, et on peut

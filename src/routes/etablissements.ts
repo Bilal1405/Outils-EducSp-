@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { creerRouteur } from "../routeurAsync";
 import { z } from "zod";
 import {
   getEtablissementById,
@@ -8,7 +8,7 @@ import { getQuotaStatus } from "../services/quotaService";
 import { listerAudit } from "../services/auditService";
 import { etablissementDe, exigerRole } from "../middleware/authentification";
 
-export const etablissementsRouter = Router();
+export const etablissementsRouter = creerRouteur();
 
 /**
  * Un utilisateur ne voit que son établissement.

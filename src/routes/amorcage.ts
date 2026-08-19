@@ -1,11 +1,11 @@
-import { Router } from "express";
+import { creerRouteur } from "../routeurAsync";
 import { getEtablissementById } from "../repositories/etablissementRepository";
 import { listPatients } from "../repositories/patientRepository";
 import { listUtilisateurs } from "../repositories/utilisateurRepository";
 import { getQuotaStatus } from "../services/quotaService";
 import { etablissementDe } from "../middleware/authentification";
 
-export const amorcageRouter = Router();
+export const amorcageRouter = creerRouteur();
 
 /**
  * Tout ce que l'interface demande au serveur pour s'afficher, en un appel.

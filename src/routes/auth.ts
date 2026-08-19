@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { creerRouteur } from "../routeurAsync";
 import { z } from "zod";
 import { config } from "../config";
 import {
@@ -32,7 +32,7 @@ import {
   libelle,
 } from "../middleware/authentification";
 
-export const authRouter = Router();
+export const authRouter = creerRouteur();
 
 function poserCookie(res: import("express").Response, jeton: string, expireLe: Date) {
   res.cookie(NOM_COOKIE, jeton, {
