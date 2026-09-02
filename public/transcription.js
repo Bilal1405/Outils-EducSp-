@@ -89,6 +89,22 @@ function memoriserChargement() {
 let transcripteurPromise = null;
 let transcripteurPret = false;
 
+/** « webgpu » ou « wasm » : sur quoi tourne réellement le modèle chargé. */
+let peripheriqueUtilise = null;
+
+/**
+ * WebGPU a-t-il été écarté pour cet onglet ?
+ *
+ * Un pilote peut accepter de construire le graphe puis échouer à l'exécuter —
+ * la panne n'apparaît alors qu'au moment de transcrire, et se reproduirait à
+ * chaque dictée. On s'en souvient, et l'on repart directement sur WASM.
+ */
+let forcerWasm = false;
+
+export function peripheriqueDeTranscription() {
+  return peripheriqueUtilise;
+}
+
 /**
  * Le modèle est-il déjà en mémoire ? L'interface s'en sert pour prévenir que
  * la première dictée déclenche un téléchargement, et seulement celle-là.
@@ -141,6 +157,22 @@ function expliquerEchec(err, urisBloquees) {
   return message;
 }
 
+/**
+ * Une transcription qui échoue une fois le modèle chargé.
+ *
+ * Le message porte le périphérique : c'est l'information qui manquait pour
+ * distinguer, dans un signalement, un poste dont le pilote graphique refuse
+ * d'exécuter le graphe d'un poste où c'est autre chose qui cloche. Sans elle,
+ * deux pannes très différentes se ressemblent.
+ */
+function decrireEchecTranscription(err) {
+  const message = String(err && err.message ? err.message : err);
+  return (
+    `la transcription a échoué alors que le modèle était chargé ` +
+    `(exécution ${peripheriqueUtilise ?? "inconnue"}) : ${message}`
+  );
+}
+
 function chargerTranscripteur(onProgression) {
   if (transcripteurPromise) {
     return transcripteurPromise;
@@ -174,9 +206,10 @@ function chargerTranscripteur(onProgression) {
     env.useBrowserCache = true;
 
     // WebGPU quand le navigateur le supporte (transcription plusieurs fois plus
-    // rapide), repli sur WASM sinon.
+    // rapide), repli sur WASM sinon — et repli aussi quand WebGPU s'est déjà
+    // montré incapable de transcrire dans cet onglet (cf. `transcrire`).
     let derniereErreur;
-    for (const device of ["webgpu", "wasm"]) {
+    for (const device of forcerWasm ? ["wasm"] : ["webgpu", "wasm"]) {
       try {
         const transcripteur = await pipeline("automatic-speech-recognition", MODELE, {
           device,
@@ -184,6 +217,7 @@ function chargerTranscripteur(onProgression) {
           progress_callback: onProgression,
         });
         transcripteurPret = true;
+        peripheriqueUtilise = device;
         memoriserChargement();
         return transcripteur;
       } catch (err) {
@@ -235,6 +269,58 @@ export async function versPcmMono16k(blob) {
 }
 
 /**
+ * Charge le modèle et l'exécute sur du PCM, avec repli si l'accélération
+ * graphique se dérobe.
+ *
+ * Le repli sur WASM prévu au chargement ne couvrait que la construction du
+ * graphe ONNX. Or un pilote graphique peut accepter de le construire, puis
+ * refuser de l'exécuter : la panne n'apparaît alors qu'ici — après que
+ * l'éducateur a parlé — et rien ne la rattrapait. C'est la seule configuration
+ * où l'outil paraissait correctement installé (bibliothèque présente, modèle
+ * téléchargé, WebGPU annoncé disponible) et ne transcrivait rien.
+ *
+ * On refait donc le graphe sur WASM, une fois, et l'on garde la leçon pour le
+ * reste de l'onglet : plus lent, mais cela transcrit.
+ *
+ * Chemin partagé avec `essaiTechnique` : un contrôle de diagnostic qui
+ * n'emprunterait pas le même chemin que la dictée annoncerait des pannes que
+ * l'outil rattrape, ou raterait celles qu'il ne rattrape pas.
+ */
+async function executerModele(pcm, onEtape) {
+  const suivreTelechargement = (progression) => {
+    if (progression.status === "progress" && progression.total) {
+      const pct = Math.round((progression.loaded / progression.total) * 100);
+      onEtape("Téléchargement du modèle de dictée…", pct);
+    }
+  };
+
+  onEtape("Chargement du modèle de transcription…");
+  let transcripteur = await chargerTranscripteur(suivreTelechargement);
+
+  onEtape("Transcription en cours…");
+  try {
+    return await transcripteur(pcm, OPTIONS_TRANSCRIPTION);
+  } catch (err) {
+    if (peripheriqueUtilise !== "webgpu") {
+      throw new Error(decrireEchecTranscription(err));
+    }
+    // eslint-disable-next-line no-console
+    console.warn("[dictée] WebGPU n'a pas pu transcrire, repli sur WASM", err);
+    forcerWasm = true;
+    transcripteurPromise = null;
+    transcripteurPret = false;
+
+    onEtape("Nouvelle tentative sans accélération graphique…");
+    transcripteur = await chargerTranscripteur(suivreTelechargement);
+    try {
+      return await transcripteur(pcm, OPTIONS_TRANSCRIPTION);
+    } catch (err2) {
+      throw new Error(decrireEchecTranscription(err2));
+    }
+  }
+}
+
+/**
  * Transcrit un enregistrement audio en texte français.
  *
  * @param {Blob} blob  enregistrement issu de MediaRecorder
@@ -252,22 +338,37 @@ export async function transcrire(blob, onEtape = () => {}) {
     throw new Error("Enregistrement vide");
   }
 
-  onEtape("Chargement du modèle de transcription…");
-  const transcripteur = await chargerTranscripteur((progression) => {
-    if (progression.status === "progress" && progression.total) {
-      const pct = Math.round((progression.loaded / progression.total) * 100);
-      onEtape("Téléchargement du modèle de dictée…", pct);
-    }
-  });
-
-  onEtape("Transcription en cours…");
-  const resultat = await transcripteur(pcm, OPTIONS_TRANSCRIPTION);
-
+  const resultat = await executerModele(pcm, onEtape);
   const texte = (resultat?.text ?? "").trim();
   if (!texte) {
     throw new Error("Aucune parole détectée dans l'enregistrement");
   }
   return texte;
+}
+
+/**
+ * Charge le modèle et l'exécute vraiment, sur une seconde de silence.
+ *
+ * Le diagnostic vérifiait jusqu'ici que tout était *joignable* — bibliothèque
+ * servie, huggingface.co accessible, WebGPU annoncé — sans jamais faire
+ * tourner le modèle. Un poste dont le pilote graphique construit le graphe
+ * puis refuse de l'exécuter passait donc tous les contrôles au vert pendant
+ * que la dictée échouait. C'est le seul contrôle qui pouvait le voir : il
+ * fait exactement ce que fait une dictée, sans micro et sans parole.
+ *
+ * Le texte rendu n'a aucun intérêt — du silence ne dit rien. Ce qui compte
+ * est qu'aucune exception ne soit levée, et sur quel périphérique.
+ *
+ * @returns {Promise<{ peripherique: string, dureeMs: number }>}
+ */
+export async function essaiTechnique(onEtape = () => {}) {
+  const silence = new Float32Array(TAUX_ECHANTILLONNAGE);
+  const debut = performance.now();
+  await executerModele(silence, onEtape);
+  return {
+    peripherique: peripheriqueUtilise ?? "inconnu",
+    dureeMs: performance.now() - debut,
+  };
 }
 
 /**

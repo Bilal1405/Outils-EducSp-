@@ -147,6 +147,15 @@ version — et rend un rapport copiable. Accessible **sans être connecté** : n
 pas pouvoir se connecter est l'un des incidents à diagnostiquer. Toute panne
 signalée par un utilisateur commence par là.
 
+Ces contrôles-là ne disent que ce qui est *joignable*. « Essai réel de
+transcription », à la demande parce qu'il télécharge le modèle, est le seul qui
+l'exécute — et le seul qui voie un pilote graphique capable de construire le
+graphe ONNX mais pas de le faire tourner. Ce cas passait tout le rapport au
+vert pendant que la dictée échouait : le repli WebGPU → WASM ne couvrait que le
+chargement. Il couvre maintenant l'exécution (`executerModele`), que l'essai et
+la dictée empruntent tous deux — un contrôle qui suivrait un autre chemin
+signalerait des pannes que l'outil rattrape.
+
 Sauvegarde : `GET /api/etablissement/sauvegarde` (coordinateur) rend un JSON
 téléchargeable de tout l'établissement, sans les empreintes de mots de passe —
 un fichier de sauvegarde circule. `scripts/restaurer-sauvegarde.mjs` le

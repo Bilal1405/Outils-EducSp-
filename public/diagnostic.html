@@ -40,6 +40,21 @@
   <section class="diagnostic-groupe" data-groupe="Dictée vocale">
     <h2>Dictée vocale</h2>
     <div class="controles"></div>
+    <!-- À la demande, et non avec les autres : ce contrôle télécharge le
+         modèle. Les contrôles automatiques doivent rester instantanés et sans
+         coût réseau, sans quoi personne n'ouvrira cette page en urgence. -->
+    <p class="aide">
+      Les contrôles ci-dessus vérifient que tout est <em>joignable</em>. Si la
+      dictée échoue malgré un rapport entièrement vert, lancez l'essai réel :
+      il charge le modèle et l'exécute, comme une vraie dictée.
+    </p>
+    <!-- Désactivé tant que les contrôles automatiques tournent : le bouton
+         n'agit qu'une fois son écouteur posé, et un bouton qui ne fait rien
+         quand on le presse se lit comme une panne de plus. -->
+    <button type="button" id="essai-dictee" class="btn btn-secondaire" disabled>
+      Lancer un essai réel de transcription
+    </button>
+    <p id="essai-etat" class="aide" role="status" aria-live="polite"></p>
   </section>
 
   <section class="diagnostic-groupe" data-groupe="Serveur">

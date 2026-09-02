@@ -392,6 +392,74 @@ function rapportTexte() {
   return lignes.join("\n");
 }
 
+/**
+ * Ajoute au rapport un contrôle exécuté après coup, à sa place.
+ *
+ * L'ordre du rapport suit les groupes : un résultat ajouté à la fin se lirait
+ * sous « Serveur », loin de ce dont il parle.
+ */
+function ajouterResultat(groupe, intitule, resultat) {
+  const dernier = resultats.map((r) => r.groupe).lastIndexOf(groupe);
+  const entree = { groupe, intitule, ...resultat };
+  if (dernier === -1) {
+    resultats.push(entree);
+  } else {
+    resultats.splice(dernier + 1, 0, entree);
+  }
+  ligne(groupe, intitule, resultat);
+  majSynthese();
+}
+
+/**
+ * Essai réel : charge le modèle et l'exécute.
+ *
+ * Séparé des contrôles automatiques parce qu'il télécharge cent quarante
+ * mégaoctets. C'est pourtant le seul qui distingue « tout est joignable » de
+ * « la dictée fonctionne » — un pilote graphique peut construire le graphe
+ * puis refuser de l'exécuter, et alors tout le reste du rapport est vert.
+ */
+function brancherEssaiDictee() {
+  const bouton = document.getElementById("essai-dictee");
+  const etat = document.getElementById("essai-etat");
+  bouton.disabled = false;
+
+  bouton.addEventListener("click", async () => {
+    bouton.disabled = true;
+    etat.textContent = "Essai en cours…";
+
+    try {
+      const module = await import("/transcription.js");
+      const { peripherique, dureeMs } = await module.essaiTechnique(
+        (etape, pct) => {
+          etat.textContent = pct === undefined ? etape : `${etape} ${pct} %`;
+        }
+      );
+      etat.textContent = "";
+      ajouterResultat(
+        "Dictée vocale",
+        "Essai réel de transcription",
+        verdict(
+          BON,
+          `le modèle s'exécute (${peripherique}, ${Math.round(dureeMs)} ms pour 1 s d'audio)`
+        )
+      );
+    } catch (err) {
+      etat.textContent = "";
+      ajouterResultat(
+        "Dictée vocale",
+        "Essai réel de transcription",
+        verdict(
+          BLOQUANT,
+          err.message,
+          "La dictée échouera sur ce poste. Copiez le rapport et transmettez-le."
+        )
+      );
+    } finally {
+      bouton.hidden = true;
+    }
+  });
+}
+
 async function lancer() {
   document.getElementById("controles-vides").hidden = true;
 
@@ -406,6 +474,8 @@ async function lancer() {
     ligne(groupe, intitule, resultat);
     majSynthese();
   }
+
+  brancherEssaiDictee();
 
   document.getElementById("copier").hidden = false;
   document.getElementById("copier").addEventListener("click", async () => {
