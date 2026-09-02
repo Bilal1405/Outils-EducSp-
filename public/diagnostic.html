@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Diagnostic du poste — Bilans éducatifs</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23c26b3c'/%3E%3Cpath d='M9 8h11l4 4v12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z' fill='%23fffdfa'/%3E%3Cpath d='M11 16h10M11 20h7' stroke='%23c26b3c' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="modulepreload" href="/js/diagnostic.js" />
+</head>
+<body class="page-diagnostic">
+
+<main class="diagnostic">
+  <header class="diagnostic-tete">
+    <h1>Diagnostic du poste</h1>
+    <p class="aide">
+      Cette page vérifie, depuis cet ordinateur, tout ce dont l'application a
+      besoin pour fonctionner. Elle n'envoie rien et ne demande pas de compte.
+      En cas de problème, copiez le rapport et transmettez-le.
+    </p>
+    <p id="synthese" class="synthese">Contrôles en cours…</p>
+    <button type="button" id="copier" class="btn btn-primaire" hidden>
+      Copier le rapport
+    </button>
+    <textarea id="rapport" class="rapport" rows="12" readonly hidden></textarea>
+  </header>
+
+  <p id="controles-vides" class="aide">Préparation des contrôles…</p>
+
+  <section class="diagnostic-groupe" data-groupe="Navigateur">
+    <h2>Navigateur</h2>
+    <div class="controles"></div>
+  </section>
+
+  <section class="diagnostic-groupe" data-groupe="Poste">
+    <h2>Poste</h2>
+    <div class="controles"></div>
+  </section>
+
+  <section class="diagnostic-groupe" data-groupe="Dictée vocale">
+    <h2>Dictée vocale</h2>
+    <div class="controles"></div>
+  </section>
+
+  <section class="diagnostic-groupe" data-groupe="Serveur">
+    <h2>Serveur</h2>
+    <div class="controles"></div>
+  </section>
+
+  <footer class="diagnostic-pied">
+    <a href="/">Retour à l'application</a>
+  </footer>
+</main>
+
+<script type="module" src="/js/diagnostic.js"></script>
+</body>
+</html>

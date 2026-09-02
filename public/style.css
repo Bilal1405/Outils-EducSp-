@@ -2213,3 +2213,123 @@ dialog::backdrop {
   color: var(--alerte);
   font-weight: 600;
 }
+
+/* ========================================================================
+   9. Page de diagnostic
+   ========================================================================
+   Autonome : elle doit rester lisible même quand l'application ne se charge
+   pas, et s'imprimer proprement pour être transmise. */
+
+.page-diagnostic {
+  height: auto;
+  overflow: auto;
+  background: var(--fond);
+}
+
+.diagnostic {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.diagnostic-tete {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.85rem;
+}
+
+.diagnostic-tete h1 { font-size: var(--t-2xl); }
+
+.synthese {
+  width: 100%;
+  padding: 0.8rem 1rem;
+  border-radius: var(--r-md);
+  border: 1px solid var(--trait);
+  background: var(--surface);
+  font-weight: 550;
+}
+
+.synthese-bon { border-color: var(--succes); background: var(--succes-tenu); color: var(--succes); }
+.synthese-limite { border-color: var(--attention); background: var(--attention-tenue); color: var(--attention); }
+.synthese-bloquant { border-color: var(--alerte); background: var(--alerte-tenue); color: var(--alerte); }
+
+.rapport {
+  width: 100%;
+  font-family: var(--police-mono);
+  font-size: var(--t-xs);
+}
+
+.diagnostic-groupe {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.diagnostic-groupe h2 {
+  font-size: var(--t-lg);
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--trait);
+}
+
+.controles { display: flex; flex-direction: column; gap: 0.5rem; }
+
+/* Intitulé et verdict sur une ligne, détail dessous : c'est le verdict qu'on
+   cherche en parcourant la page, pas la phrase qui l'explique. */
+.controle {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.15rem 1rem;
+  padding: 0.7rem 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--trait);
+  border-left: 3px solid var(--trait-fort);
+  border-radius: var(--r-sm);
+}
+
+.controle-bloquant { border-left-color: var(--alerte); }
+.controle-limite { border-left-color: var(--attention); }
+.controle-bon { border-left-color: var(--succes); }
+
+.controle-intitule { font-weight: 550; }
+
+.controle-etat {
+  font-size: var(--t-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.etat-bon { color: var(--succes); }
+.etat-limite { color: var(--attention); }
+.etat-bloquant { color: var(--alerte); }
+.etat-inconnu { color: var(--texte-tenu); }
+
+.controle-detail {
+  grid-column: 1 / -1;
+  font-size: var(--t-sm);
+  color: var(--texte-doux);
+}
+
+.controle-conseil {
+  grid-column: 1 / -1;
+  margin-top: 0.35rem;
+  font-size: var(--t-sm);
+  color: var(--texte);
+}
+
+.diagnostic-pied {
+  padding-top: 1rem;
+  border-top: 1px solid var(--trait);
+  font-size: var(--t-sm);
+}
+
+@media print {
+  .diagnostic { padding: 0; }
+  #copier, .diagnostic-pied { display: none; }
+  .controle { break-inside: avoid; }
+}

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import express from "express";
 import { racineProjet } from "./chemins";
@@ -19,6 +20,28 @@ import { etablissementsRouter } from "./routes/etablissements";
 import { patientsRouter } from "./routes/patients";
 import { schemaRouter } from "./routes/schema";
 import { utilisateursRouter } from "./routes/utilisateurs";
+
+/**
+ * Version publiée, lue une fois au démarrage.
+ *
+ * Sans elle, la première question de tout incident — « quelle version tourne
+ * sur ce poste ? » — n'a pas de réponse, et l'on répare parfois ce qui l'est
+ * déjà.
+ */
+let version: string | null = null;
+function versionApplication(): string {
+  if (version === null) {
+    try {
+      const paquet = JSON.parse(
+        readFileSync(path.join(racineProjet(__dirname), "package.json"), "utf8")
+      );
+      version = String(paquet.version ?? "inconnue");
+    } catch {
+      version = "inconnue";
+    }
+  }
+  return version;
+}
 
 export function createApp() {
   const app = express();
@@ -87,11 +110,12 @@ export function createApp() {
   app.get("/health", async (_req, res) => {
     try {
       await pool.query("SELECT 1");
-      return res.json({ status: "ok", database: "ok" });
+      return res.json({ status: "ok", database: "ok", version: versionApplication() });
     } catch (err) {
       return res.status(503).json({
         status: "degraded",
         database: "unreachable",
+        version: versionApplication(),
         details: err instanceof Error ? err.message : String(err),
       });
     }

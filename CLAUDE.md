@@ -101,6 +101,13 @@ bénéficiaire en cascade, la trace survit à l'effacement. L'écriture ne bloqu
 pas la réponse (`journaliser` rend la main aussitôt) : ne pas la remettre sur
 le chemin critique, et ne pas en déduire l'issue d'une action.
 
+`public/diagnostic.html` vérifie sur le poste tout ce dont l'application a
+besoin — navigateur, micro, origine sécurisée, écran, accès à huggingface.co et
+jsdelivr.net, présence de la bibliothèque côté serveur, base de données,
+version — et rend un rapport copiable. Accessible **sans être connecté** : ne
+pas pouvoir se connecter est l'un des incidents à diagnostiquer. Toute panne
+signalée par un utilisateur commence par là.
+
 Sauvegarde : `GET /api/etablissement/sauvegarde` (coordinateur) rend un JSON
 téléchargeable de tout l'établissement, sans les empreintes de mots de passe —
 un fichier de sauvegarde circule. `scripts/restaurer-sauvegarde.mjs` le

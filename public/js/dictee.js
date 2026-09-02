@@ -113,7 +113,11 @@ async function transcrire(blob) {
     }
     signaler("termine", "");
   } catch (err) {
-    signaler("erreur", `La dictée a échoué : ${err.message}`);
+    signaler(
+      "erreur",
+      `La dictée a échoué : ${err.message} Pour savoir ce qui manque sur ce ` +
+        "poste, ouvrez /diagnostic.html"
+    );
   } finally {
     rappels = null;
   }
