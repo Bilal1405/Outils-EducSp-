@@ -45,16 +45,40 @@ const DOSSIER_ONNX_RUNTIME =
  */
 const STOCKAGE_MODELES = ["https://huggingface.co", "https://*.hf.co", "https://*.huggingface.co"];
 
+/**
+ * Pourquoi `blob:` apparaît dans trois directives, et pas dans une seule.
+ *
+ * ONNX Runtime récupère son moteur WebAssembly, le range dans un `Blob`, puis
+ * s'en sert de trois façons distinctes — chacune relevant d'une directive
+ * différente. Mesuré dans Chromium sur cette politique exacte :
+ *
+ *   - `new Worker(blob:…)`        → worker-src        (autorisé de longue date)
+ *   - `<script src="blob:…">`     → script-src-elem   (refusé : « blob »)
+ *   - `fetch(blob:…)`             → connect-src       (refusé : « blob »)
+ *
+ * N'autoriser que `worker-src` laissait donc le modèle se télécharger jusqu'à
+ * 100 %, puis échouer à l'exécution — un poste où tout paraissait joignable et
+ * où rien ne transcrivait.
+ *
+ * Ce que cela ouvre : une URL `blob:` ne peut être fabriquée que par la page
+ * elle-même, sur sa propre origine ; elle ne peut désigner ni un autre domaine
+ * ni un contenu venu d'ailleurs. `connect-src blob:` ne permet donc aucune
+ * sortie de données. `script-src blob:` est le seul point réellement élargi :
+ * il faudrait déjà savoir exécuter du script dans la page pour en tirer parti,
+ * et `'unsafe-inline'` comme `'unsafe-eval'` restent refusés.
+ */
+const BLOB = "blob:";
+
 export const POLITIQUE_CSP = [
   "default-src 'self'",
   "img-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
   // `wasm-unsafe-eval` : l'instanciation d'un module WebAssembly, sans quoi
   // aucune transcription n'est possible. Ce n'est pas `unsafe-eval`.
-  `script-src 'self' 'wasm-unsafe-eval' ${DOSSIER_ONNX_RUNTIME}`,
+  `script-src 'self' 'wasm-unsafe-eval' ${BLOB} ${DOSSIER_ONNX_RUNTIME}`,
   // ONNX Runtime crée ses fils d'exécution à partir de blobs.
-  "worker-src 'self' blob:",
-  `connect-src 'self' ${STOCKAGE_MODELES.join(" ")} https://cdn.jsdelivr.net`,
+  `worker-src 'self' ${BLOB}`,
+  `connect-src 'self' ${BLOB} ${STOCKAGE_MODELES.join(" ")} https://cdn.jsdelivr.net`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

@@ -47,6 +47,31 @@ describe("politique de sécurité du contenu", () => {
     expect(scripts).not.toMatch(/https:\/\/cdn\.jsdelivr\.net(\s|$)/);
   });
 
+  /**
+   * ONNX Runtime range son moteur WebAssembly dans un `Blob`, puis s'en sert
+   * de trois façons relevant de trois directives. Mesuré dans Chromium :
+   * `new Worker(blob:)` relève de worker-src, `<script src="blob:">` de
+   * script-src-elem, `fetch(blob:)` de connect-src.
+   *
+   * N'en autoriser qu'une laissait le modèle se télécharger jusqu'à 100 %,
+   * puis échouer à l'exécution — sur un poste où tous les autres contrôles
+   * étaient au vert.
+   */
+  it.each(["script-src", "worker-src", "connect-src"])(
+    "autorise les URL blob: en %s",
+    (nom) => {
+      expect(directive(nom)).toContain("blob:");
+    }
+  );
+
+  it("n'ouvre blob: nulle part ailleurs", () => {
+    // `default-src` reste fermé : une directive oubliée doit retomber sur du
+    // refus, pas hériter d'une permission accordée pour la dictée.
+    expect(directive("default-src")).not.toContain("blob:");
+    expect(directive("img-src")).not.toContain("blob:");
+    expect(directive("style-src")).not.toContain("blob:");
+  });
+
   it("permet WebAssembly sans ouvrir eval", () => {
     expect(directive("script-src")).toContain("'wasm-unsafe-eval'");
     expect(directive("script-src")).not.toContain("'unsafe-eval'");
