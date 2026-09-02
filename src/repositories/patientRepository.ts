@@ -89,27 +89,18 @@ export async function supprimerPatient(
   id: string,
   etablissementId: string
 ): Promise<number> {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-
-    const { rows } = await client.query<{ total: string }>(
+  return pool.transaction(async (base) => {
+    const { rows } = await base.query<{ total: string }>(
       `SELECT count(*)::text AS total FROM bilans WHERE patient_id = $1`,
       [id]
     );
     const bilans = Number(rows[0].total);
 
-    await client.query(`DELETE FROM patients WHERE id = $1 AND etablissement_id = $2`, [
+    await base.query(`DELETE FROM patients WHERE id = $1 AND etablissement_id = $2`, [
       id,
       etablissementId,
     ]);
 
-    await client.query("COMMIT");
     return bilans;
-  } catch (err) {
-    await client.query("ROLLBACK");
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }

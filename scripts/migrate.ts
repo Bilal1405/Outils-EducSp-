@@ -2,12 +2,16 @@ import "dotenv/config";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { racineProjet } from "../src/chemins";
-import { Pool } from "pg";
+// Le même accès que l'application : les migrations doivent s'appliquer aussi
+// bien à un serveur PostgreSQL qu'à la base embarquée, sans script séparé.
+import { embarquee, dossierBaseEmbarquee, pool } from "../src/db";
 
 const MIGRATIONS_DIR = path.join(racineProjet(__dirname), "db", "migrations");
 
 async function main() {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  if (embarquee) {
+    console.log(`Base embarquée : ${dossierBaseEmbarquee()}`);
+  }
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -32,20 +36,10 @@ async function main() {
 
     const sql = readFileSync(path.join(MIGRATIONS_DIR, file), "utf-8");
     console.log(`> application de ${file}...`);
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      await client.query(sql);
-      await client.query("INSERT INTO schema_migrations (name) VALUES ($1)", [
-        file,
-      ]);
-      await client.query("COMMIT");
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
-    } finally {
-      client.release();
-    }
+    await pool.transaction(async (base) => {
+      await base.executerScript(sql);
+      await base.query("INSERT INTO schema_migrations (name) VALUES ($1)", [file]);
+    });
   }
 
   await pool.end();

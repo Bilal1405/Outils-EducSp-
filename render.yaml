@@ -12,7 +12,10 @@ services:
     # contente d'en vérifier l'empreinte, hors ligne. S'il échoue, c'est que le
     # dépôt ne contient pas ce qu'il annonce — et il vaut mieux le savoir à la
     # construction qu'au premier clic sur le micro d'un éducateur.
-    buildCommand: npm ci --include=dev && npm run vendor:asr && npm run build
+    # `--omit=optional` écarte la base embarquée : elle sert aux postes sans
+    # droits d'installation, pas à un déploiement qui a déjà son serveur
+    # PostgreSQL, et pèse une trentaine de mégaoctets.
+    buildCommand: npm ci --include=dev --omit=optional && npm run vendor:asr && npm run build
     # Migration exécutée depuis le JavaScript compilé : tsx n'a pas à être
     # présent au démarrage.
     startCommand: npm run migrate:prod && npm start

@@ -6,7 +6,14 @@ handicap). Interface et code en français.
 ## Stack réelle (autorité — prime sur les documents de spec)
 
 - Backend : Node.js 22 + **Express 4** + TypeScript (CommonJS, strict)
-- DB : PostgreSQL, **SQL brut** (`node-postgres`), migrations dans `db/migrations/`
+- DB : PostgreSQL, **SQL brut**, migrations dans `db/migrations/`. Deux moteurs
+  derrière `src/db.ts` : `postgres://…` (serveur, `node-postgres`) ou
+  `fichier:./donnees` (PGlite, PostgreSQL en WebAssembly, rien à installer).
+  Ce n'est pas un portage — le même SQL passe sur les deux, et
+  `test/baseEmbarquee.test.ts` le vérifie migration par migration. Ne jamais
+  écrire de requête qui ne passe que sur l'un des deux ; `pool.executerScript()`
+  pour un script à plusieurs instructions, `pool.transaction()` pour une
+  transaction.
 - Frontend : **HTML/CSS/JS vanilla** dans `public/` — modules ES natifs dans
   `public/js/`, pas de bundler, pas de framework
 - Validation : Zod. Trois trames de bilan :
