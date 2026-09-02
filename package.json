@@ -15,7 +15,8 @@
     "vendor:asr": "node scripts/vendor-asr.mjs",
     "postinstall": "node scripts/vendor-asr.mjs --tolerant",
     "sauvegarde": "node scripts/sauvegarde.mjs",
-    "migrate:prod": "node dist/scripts/migrate.js"
+    "migrate:prod": "node dist/scripts/migrate.js",
+    "start:prod": "node dist/scripts/demarrer.js"
   },
   "dependencies": {
     "docx": "^9.7.1",

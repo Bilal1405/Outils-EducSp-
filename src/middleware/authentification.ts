@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { baseInjoignable } from "../erreursBase";
 import {
   NOM_COOKIE,
   prolongerSession,
@@ -83,6 +84,12 @@ export async function authentifier(
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error("[auth] résolution de session impossible", err);
+    // Une base injoignable ne doit pas se présenter comme une session expirée :
+    // l'utilisateur se déconnecterait pour se reconnecter, en vain. On laisse
+    // remonter, le gestionnaire d'erreur dira ce qu'il en est vraiment.
+    if (baseInjoignable(err)) {
+      return next(err);
+    }
   }
   return next();
 }

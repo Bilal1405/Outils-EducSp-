@@ -16,9 +16,15 @@ services:
     # droits d'installation, pas à un déploiement qui a déjà son serveur
     # PostgreSQL, et pèse une trentaine de mégaoctets.
     buildCommand: npm ci --include=dev --omit=optional && npm run vendor:asr && npm run build
-    # Migration exécutée depuis le JavaScript compilé : tsx n'a pas à être
-    # présent au démarrage.
-    startCommand: npm run migrate:prod && npm start
+    # Un seul point d'entrée, depuis le JavaScript compilé — tsx n'a pas à être
+    # présent au démarrage. Il applique les migrations puis démarre le serveur.
+    #
+    # Ce n'est plus `migrate && start` : cet enchaînement arrêtait tout au
+    # premier ordre quand la base était injoignable, et l'on n'obtenait pas
+    # même `/diagnostic.html`, la page faite pour dire ce qui ne va pas. Le
+    # script distingue désormais une base absente — on démarre en état dégradé,
+    # qui l'annonce — d'une migration refusée, où l'on s'arrête pour de bon.
+    startCommand: npm run start:prod
     healthCheckPath: /health
     envVars:
       # Décide notamment que le cookie de session exige HTTPS. Sans cette

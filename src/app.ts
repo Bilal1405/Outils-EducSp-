@@ -4,6 +4,7 @@ import express from "express";
 import { racineProjet } from "./chemins";
 import { config } from "./config";
 import { pool } from "./db";
+import { baseInjoignable } from "./erreursBase";
 import {
   authentifier,
   exigerAuthentification,
@@ -104,15 +105,24 @@ export function createApp() {
     next();
   });
 
-  // Sonde de vivacité (aucune authentification requise) : utilisée par
-  // l'hébergeur pour savoir si l'instance répond, et pour vérifier que la
-  // base est joignable avant de router du trafic vers elle.
+  /**
+   * Sonde de vivacité (aucune authentification requise).
+   *
+   * Elle répond 200 dès lors que ce processus répond, y compris quand la base
+   * est injoignable — et le corps le dit alors sans détour. Ce n'est pas une
+   * complaisance : l'hébergeur ne dispose que de cette sonde pour décider si
+   * l'instance mérite de vivre, et un 503 la ferait rejeter au déploiement.
+   * On perdrait exactement ce qui sert à comprendre la panne : cette page,
+   * `/diagnostic.html`, et la reprise automatique des migrations quand la base
+   * revient. Une base absente est une panne de l'environnement, pas de
+   * l'instance ; c'est à `status` de le dire, pas au code HTTP.
+   */
   app.get("/health", async (_req, res) => {
     try {
       await pool.query("SELECT 1");
       return res.json({ status: "ok", database: "ok", version: versionApplication() });
     } catch (err) {
-      return res.status(503).json({
+      return res.json({
         status: "degraded",
         database: "unreachable",
         version: versionApplication(),
@@ -159,6 +169,18 @@ export function createApp() {
       console.error("[erreur non rattrapée]", err);
       if (res.headersSent) {
         return;
+      }
+      // Une base injoignable n'est pas une erreur interne : l'application va
+      // bien, c'est sa base qui manque. Le dire évite de chercher un défaut
+      // dans le code, et 503 indique — au navigateur comme à l'hébergeur —
+      // une indisponibilité passagère plutôt qu'une requête fautive.
+      if (baseInjoignable(err)) {
+        return res.status(503).json({
+          error:
+            "La base de données est injoignable : rien ne peut être lu ni " +
+            "enregistré pour le moment. Ouvrez /diagnostic.html pour un état " +
+            "détaillé ; la correction est côté serveur.",
+        });
       }
       res.status(500).json({ error: "Erreur interne" });
     }

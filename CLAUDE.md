@@ -108,6 +108,19 @@ bénéficiaire en cascade, la trace survit à l'effacement. L'écriture ne bloqu
 pas la réponse (`journaliser` rend la main aussitôt) : ne pas la remettre sur
 le chemin critique, et ne pas en déduire l'issue d'une action.
 
+Le démarrage en production passe par `scripts/demarrer.ts`, pas par
+`migrate && start` : cet enchaînement s'arrêtait au premier ordre quand la base
+était injoignable, et l'on n'obtenait alors ni `/health` ni `/diagnostic.html`
+— les deux seules pages faites pour dire ce qui ne va pas. Le script distingue
+désormais **base absente** (on démarre en état dégradé, les migrations sont
+reprises en fond, `/health` répond 200 avec `status: degraded`) de **migration
+refusée** (on s'arrête : un schéma à moitié posé ne doit rien servir). `/health`
+doit rester en 200 tant que le processus répond — l'hébergeur n'a que cette
+sonde pour décider si l'instance vit, et un 503 la ferait rejeter au
+déploiement, emportant le diagnostic avec elle. Une base injoignable rend 503
+sur les routes, jamais « Erreur interne » ni « Session expirée ».
+`test/demarrageDegrade.test.ts` borde tout cela.
+
 `public/diagnostic.html` vérifie sur le poste tout ce dont l'application a
 besoin — navigateur, micro, origine sécurisée, écran, accès à huggingface.co et
 jsdelivr.net, présence de la bibliothèque côté serveur, base de données,

@@ -5,23 +5,22 @@ import { racineProjet } from "../src/chemins";
 // Le même accès que l'application : les migrations doivent s'appliquer aussi
 // bien à un serveur PostgreSQL qu'à la base embarquée, sans script séparé.
 import { embarquee, dossierBaseEmbarquee, pool } from "../src/db";
+import { baseInjoignable } from "../src/erreursBase";
 
 const MIGRATIONS_DIR = path.join(racineProjet(__dirname), "db", "migrations");
 
 /**
- * Codes d'erreur qui désignent une base qu'on n'a pas pu joindre, par
- * opposition à une migration qui échoue sur son SQL. Les premiers valent la
- * peine d'être réessayés — une base d'hébergeur peut mettre un moment à se
- * réveiller — les seconds jamais.
+ * Base introuvable ou muette — par opposition à une migration refusée.
+ *
+ * La distinction commande la suite : une base absente est une panne
+ * d'environnement, dont l'application peut rendre compte ; une migration
+ * refusée laisse un schéma à moitié posé, et rien ne doit tourner dessus.
  */
-const INJOIGNABLE = ["ENOTFOUND", "ECONNREFUSED", "ETIMEDOUT", "EAI_AGAIN"];
-
-function estInjoignable(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    INJOIGNABLE.includes(String((err as { code?: string }).code))
-  );
+export class BaseInjoignable extends Error {
+  constructor(readonly cause: unknown) {
+    super(expliquerInjoignable(cause as { code?: string; hostname?: string }));
+    this.name = "BaseInjoignable";
+  }
 }
 
 /**
@@ -80,14 +79,24 @@ async function attendreLaBase(): Promise<void> {
       await pool.query("SELECT 1");
       return;
     } catch (err) {
-      if (!estInjoignable(err) || essai === ATTENTES_MS.length - 1) {
+      if (!baseInjoignable(err)) {
         throw err;
+      }
+      if (essai === ATTENTES_MS.length - 1) {
+        throw new BaseInjoignable(err);
       }
     }
   }
 }
 
-async function main() {
+/**
+ * Applique les migrations manquantes. Lève `BaseInjoignable` si la base n'a pas
+ * répondu, l'erreur SQL d'origine si une migration a été refusée.
+ *
+ * Ne ferme pas la base : l'appelant décide s'il s'arrête là ou s'il continue à
+ * s'en servir — le serveur enchaîne, le script en ligne de commande non.
+ */
+export async function appliquerMigrations(): Promise<void> {
   if (embarquee) {
     console.log(`Base embarquée : ${dossierBaseEmbarquee()}`);
   }
@@ -123,18 +132,26 @@ async function main() {
     });
   }
 
-  await pool.end();
   console.log("Migrations terminées.");
 }
 
-main().catch((err) => {
-  if (estInjoignable(err)) {
-    // Le message brut — `getaddrinfo ENOTFOUND dpg-xxxx-a` — s'affiche dans
-    // les journaux d'un hébergeur au milieu d'un redémarrage en boucle, et ne
-    // dit ni ce qui manque ni où regarder.
-    console.error(`\n${expliquerInjoignable(err as { code?: string; hostname?: string })}\n`);
-  } else {
-    console.error("Échec des migrations:", err);
-  }
-  process.exit(1);
-});
+async function main() {
+  await appliquerMigrations();
+  await pool.end();
+}
+
+// Seulement en ligne de commande : le serveur importe `appliquerMigrations`
+// sans vouloir qu'un `process.exit` lui soit imposé.
+if (require.main === module) {
+  main().catch((err) => {
+    if (err instanceof BaseInjoignable) {
+      // Le message brut — `getaddrinfo ENOTFOUND dpg-xxxx-a` — s'affiche dans
+      // les journaux d'un hébergeur au milieu d'un redémarrage en boucle, et
+      // ne dit ni ce qui manque ni où regarder.
+      console.error(`\n${err.message}\n`);
+    } else {
+      console.error("Échec des migrations:", err);
+    }
+    process.exit(1);
+  });
+}
