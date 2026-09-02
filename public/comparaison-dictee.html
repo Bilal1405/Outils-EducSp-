@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Comparaison des précisions de dictée — Bilans éducatifs</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23c26b3c'/%3E%3Cpath d='M9 8h11l4 4v12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z' fill='%23fffdfa'/%3E%3Cpath d='M11 16h10M11 20h7' stroke='%23c26b3c' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="modulepreload" href="/js/comparaison.js" />
+</head>
+<body class="page-diagnostic">
+
+<main class="diagnostic">
+  <header class="diagnostic-tete">
+    <h1>Comparaison des précisions de dictée</h1>
+    <p class="aide">
+      L'outil télécharge aujourd'hui le modèle de dictée en pleine précision :
+      environ 140 Mo, une seule fois par poste. Une variante compressée
+      (« q8 ») pèse trois fois moins et transcrit plus vite, mais peut se
+      tromper davantage. Cette page mesure l'écart <strong>sur ce poste et avec
+      votre voix</strong> : c'est le seul endroit où la question a une réponse
+      utile.
+    </p>
+    <p class="aide">
+      Dictez une observation représentative — une vraie phrase de bilan, avec
+      les mots du métier — de trente secondes environ. Les deux modèles sont
+      ensuite exécutés sur le même enregistrement. Rien n'est envoyé au
+      serveur : tout se passe dans cet onglet.
+    </p>
+  </header>
+
+  <section class="diagnostic-groupe">
+    <h2>1. L'enregistrement</h2>
+    <div class="comparaison-actions">
+      <button type="button" id="enregistrer" class="btn btn-primaire">
+        Enregistrer une dictée
+      </button>
+      <label class="btn btn-secondaire">
+        Ou choisir un fichier audio
+        <input type="file" id="fichier" accept="audio/*" hidden />
+      </label>
+    </div>
+    <p id="etat" class="aide" role="status" aria-live="polite">
+      Aucun enregistrement pour l'instant.
+    </p>
+  </section>
+
+  <section class="diagnostic-groupe">
+    <h2>2. La comparaison</h2>
+    <p class="aide">
+      Le premier passage télécharge les deux modèles : comptez plusieurs
+      minutes sur une connexion ordinaire. Les suivants sont immédiats.
+    </p>
+    <button type="button" id="lancer" class="btn btn-primaire" disabled>
+      Comparer les deux précisions
+    </button>
+  </section>
+
+  <section id="resultats" class="diagnostic-groupe" hidden>
+    <h2>3. Les résultats</h2>
+
+    <div class="comparaison-tableau-cadre">
+      <table class="comparaison-tableau">
+        <thead>
+          <tr>
+            <td></td>
+            <th scope="col">Pleine précision<br /><span class="aide">en service</span></th>
+            <th scope="col">Quantifiée q8</th>
+          </tr>
+        </thead>
+        <tbody id="tableau-corps"></tbody>
+      </table>
+    </div>
+
+    <p id="ecart" class="encart"></p>
+
+    <div class="comparaison-textes">
+      <div>
+        <h3>Pleine précision</h3>
+        <p id="texte-actuelle" class="comparaison-texte"></p>
+      </div>
+      <div>
+        <h3>Quantifiée q8</h3>
+        <p id="texte-q8" class="comparaison-texte"></p>
+      </div>
+    </div>
+
+    <p class="aide">
+      Le chiffre ne décide pas seul. Un écart sur « le » ou « un » ne compte
+      pas comme un écart sur un prénom, une date ou une observation clinique :
+      relisez les deux textes avant de trancher.
+    </p>
+
+    <button type="button" id="copier" class="btn btn-secondaire" hidden>
+      Copier le rapport
+    </button>
+    <textarea id="rapport" class="rapport" rows="14" readonly hidden></textarea>
+  </section>
+
+  <footer class="diagnostic-pied">
+    <a href="/">Retour à l'application</a>
+  </footer>
+</main>
+
+<script type="module" src="/js/comparaison.js"></script>
+</body>
+</html>

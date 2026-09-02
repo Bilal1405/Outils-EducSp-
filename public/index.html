@@ -1,0 +1,795 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bilans éducatifs</title>
+  <meta name="description" content="Rédaction assistée de bilans éducatifs trimestriels." />
+  <!-- Icône embarquée (data URI) : aucune requête réseau, aucune dépendance
+       à un service d'icônes externe. -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23c26b3c'/%3E%3Cpath d='M9 8h11l4 4v12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z' fill='%23fffdfa'/%3E%3Cpath d='M11 16h10M11 20h7' stroke='%23c26b3c' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/style.css" />
+
+  <!-- Sans ces lignes, le navigateur ne découvre les modules qu'en analysant
+       `app.js`, puis leurs propres imports en les analysant à leur tour :
+       trois vagues successives, donc trois allers-retours, avant la première
+       ligne de code exécutée. Les annoncer ici les met tous dans la première
+       vague. Ce n'est pas du préchargement spéculatif — ces fichiers sont
+       tous chargés au démarrage, sans exception.
+
+       `/transcription.js` n'y figure volontairement pas : l'écran de
+       préparation le demande une fois la session établie, et il n'y a aucune
+       raison de le servir à un visiteur qui n'est pas encore connecté. -->
+  <link rel="modulepreload" href="/js/app.js" />
+  <link rel="modulepreload" href="/js/api.js" />
+  <link rel="modulepreload" href="/js/etat.js" />
+  <link rel="modulepreload" href="/js/ui.js" />
+  <link rel="modulepreload" href="/js/portail.js" />
+  <link rel="modulepreload" href="/js/preparation.js" />
+  <link rel="modulepreload" href="/js/reglages.js" />
+  <link rel="modulepreload" href="/js/beneficiaires.js" />
+  <link rel="modulepreload" href="/js/redaction.js" />
+  <link rel="modulepreload" href="/js/dictee.js" />
+  <link rel="modulepreload" href="/js/bilan.js" />
+  <link rel="modulepreload" href="/js/parcours.js" />
+  <link rel="modulepreload" href="/js/pilotage.js" />
+</head>
+<body>
+
+<!-- Jeu d'icônes en ligne. Dessinées ici plutôt que chargées depuis une
+     bibliothèque distante : aucune requête sortante, et elles héritent de la
+     couleur du texte qui les entoure. -->
+<svg class="jeu-icones" aria-hidden="true" focusable="false">
+  <symbol id="ico-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="ico-recherche" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="ico-micro" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+  <symbol id="ico-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="ico-reglages" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></symbol>
+  <symbol id="ico-fermer" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="ico-telecharger" viewBox="0 0 24 24"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></symbol>
+  <symbol id="ico-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+  <symbol id="ico-corbeille" viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="ico-retour" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></symbol>
+  <symbol id="ico-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="ico-chevron" viewBox="0 0 24 24"><path d="m8 10 4 4 4-4"/></symbol>
+  <symbol id="ico-etincelle" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M11 2.5 13.4 7.6 18.5 10 13.4 12.4 11 17.5 8.6 12.4 3.5 10 8.6 7.6ZM18.5 14.2l1 2.3 2.3 1-2.3 1-1 2.3-1-2.3-2.3-1 2.3-1Z"/></symbol>
+  <symbol id="ico-document" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4"/></symbol>
+  <symbol id="ico-alerte" viewBox="0 0 24 24"><path d="M12 4 2.5 20h19zM12 10v4M12 17.5v.01"/></symbol>
+</svg>
+
+<!-- Panne de fond (serveur arrêté, base injoignable) : bandeau permanent, en
+     tête de page, impossible à manquer. -->
+<div id="app-alerte" class="app-alerte" role="alert" hidden>
+  <svg class="ico"><use href="#ico-alerte"/></svg>
+  <span id="app-alerte-texte"></span>
+</div>
+
+<!-- Écran d'accueil non authentifié. Il précède tout le reste : rien de
+     l'application n'est chargé tant que la session n'est pas établie. -->
+<div id="portail" class="portail" hidden>
+  <div class="portail-carte">
+    <div class="portail-marque">
+      <span class="marque-pastille"><svg class="ico"><use href="#ico-document"/></svg></span>
+      <span class="marque-nom">Bilans éducatifs</span>
+    </div>
+
+    <form id="form-connexion" class="formulaire" hidden>
+      <h1>Connexion</h1>
+      <label class="champ">
+        <span class="champ-label">Adresse électronique</span>
+        <input type="email" id="connexion-email" autocomplete="username" required />
+      </label>
+      <label class="champ">
+        <span class="champ-label">Mot de passe</span>
+        <input type="password" id="connexion-mot-de-passe" autocomplete="current-password" required />
+      </label>
+      <button type="submit" id="connexion-valider" class="btn btn-primaire btn-bloc">
+        Se connecter
+      </button>
+      <p id="connexion-statut" class="statut" role="status" aria-live="polite"></p>
+      <!-- Visible seulement tant que la mise en service reste possible : une
+           fois l'instance initialisée, ce chemin n'existe plus. -->
+      <div class="portail-bascule" id="vers-initialisation" hidden>
+        <span class="portail-ou">ou</span>
+        <button type="button" class="btn btn-secondaire btn-bloc" id="vers-initialisation-btn">
+          Mettre l'outil en service
+        </button>
+      </div>
+    </form>
+
+    <form id="form-initialisation" class="formulaire" hidden>
+      <h1>Mise en service</h1>
+      <p class="aide">
+        Aucun compte n'existe encore. Créez l'établissement et le premier
+        administrateur. Cette page ne sera plus accessible ensuite.
+      </p>
+      <!-- Placé avant le formulaire, et non après : sur un écran de portable,
+           le bas de cette carte tombe sous la ligne de flottaison. Une sortie
+           qu'il faut aller chercher en défilant n'est pas une sortie. -->
+      <div class="portail-deja">
+        <span>Vous avez déjà un compte ?</span>
+        <button type="button" class="btn btn-secondaire" id="vers-connexion-btn">
+          Se connecter
+        </button>
+      </div>
+      <p id="init-rappel-etablissement" class="encart" hidden></p>
+      <label class="champ" id="init-etablissement-champ">
+        <span class="champ-label">Nom de l'établissement</span>
+        <input type="text" id="init-etablissement" autocomplete="off" />
+      </label>
+      <label class="champ" id="init-quota-champ">
+        <span class="champ-label">Quota mensuel de bilans</span>
+        <input type="number" id="init-quota" min="1" step="1" placeholder="50" />
+      </label>
+      <div class="grille-deux">
+        <label class="champ">
+          <span class="champ-label">Prénom</span>
+          <input type="text" id="init-prenom" required autocomplete="off" />
+        </label>
+        <label class="champ">
+          <span class="champ-label">Nom</span>
+          <input type="text" id="init-nom" required autocomplete="off" />
+        </label>
+      </div>
+      <label class="champ">
+        <span class="champ-label">Adresse électronique</span>
+        <input type="email" id="init-email" required autocomplete="off" />
+      </label>
+      <label class="champ">
+        <span class="champ-label">Mot de passe</span>
+        <input type="password" id="init-mot-de-passe" required autocomplete="new-password" />
+        <span class="aide">Au moins 12 caractères. Privilégiez une phrase longue.</span>
+      </label>
+      <button type="submit" id="init-valider" class="btn btn-primaire btn-bloc">
+        Créer et se connecter
+      </button>
+      <p id="init-statut" class="statut" role="status" aria-live="polite"></p>
+    </form>
+
+    <p class="portail-mention">
+      Cet outil traite des données de santé. Ne partagez pas votre mot de passe
+      et verrouillez votre poste en le quittant.
+    </p>
+  </div>
+</div>
+
+<!-- Préparation de l'outil : ce qui devait se télécharger en cours de saisie se
+     télécharge ici, une bonne fois. L'écran ne paraît que si l'attente dépasse
+     quelques dixièmes de seconde, et il ne retient jamais personne de force. -->
+<div id="preparation" class="preparation" role="dialog" aria-modal="true"
+     aria-labelledby="preparation-titre" hidden>
+  <div class="preparation-carte">
+    <div class="portail-marque">
+      <span class="marque-pastille"><svg class="ico"><use href="#ico-document"/></svg></span>
+      <span class="marque-nom">Bilans éducatifs</span>
+    </div>
+
+    <div id="preparation-encours">
+      <h1 id="preparation-titre">Préparation de l'outil</h1>
+      <p id="preparation-etape" class="preparation-etape">
+        Mise en place du moteur de transcription…
+      </p>
+
+      <div class="preparation-jauge" role="progressbar"
+           aria-labelledby="preparation-etape"
+           aria-valuemin="0" aria-valuemax="100">
+        <span id="preparation-barre" class="preparation-barre"></span>
+      </div>
+      <p id="preparation-taille" class="preparation-taille"></p>
+
+      <p id="preparation-premiere" class="preparation-note" hidden>
+        Premier lancement sur ce poste : le modèle de dictée est téléchargé une
+        seule fois, puis conservé par le navigateur. Les lancements suivants
+        seront immédiats.
+      </p>
+
+      <button type="button" id="preparation-passer" class="btn btn-lien preparation-passer">
+        Continuer sans attendre
+      </button>
+    </div>
+
+    <div id="preparation-echec" hidden>
+      <h1>La dictée n'a pas pu être préparée</h1>
+      <p id="preparation-echec-texte" class="preparation-etape"></p>
+      <p class="preparation-note">
+        Le reste de l'outil fonctionne : vous pouvez écrire au clavier. Pour
+        savoir ce qui manque sur ce poste, ouvrez
+        <a href="/diagnostic.html" target="_blank" rel="noopener">le diagnostic</a>.
+      </p>
+      <button type="button" id="preparation-continuer" class="btn btn-primaire">
+        Continuer sans la dictée
+      </button>
+    </div>
+  </div>
+</div>
+
+<header class="entete" id="entete" hidden>
+  <button type="button" id="menu-btn" class="btn-icone entete-menu" aria-label="Afficher la liste des bénéficiaires" aria-expanded="false">
+    <svg class="ico"><use href="#ico-menu"/></svg>
+  </button>
+
+  <a class="marque" href="/">
+    <span class="marque-pastille"><svg class="ico"><use href="#ico-document"/></svg></span>
+    <span class="marque-nom">Bilans éducatifs</span>
+  </a>
+
+  <div class="entete-droite">
+    <div id="quota" class="quota" hidden>
+      <span id="quota-texte" class="quota-texte"></span>
+      <span class="quota-jauge"><span id="quota-jauge-barre" class="quota-jauge-barre"></span></span>
+    </div>
+
+    <button type="button" id="reglages-btn" class="identite" aria-haspopup="dialog">
+      <span id="identite-initiales" class="identite-initiales" aria-hidden="true">–</span>
+      <span class="identite-textes">
+        <span id="identite-nom" class="identite-nom">Éducateur non défini</span>
+        <span id="identite-etablissement" class="identite-etablissement">Aucun établissement</span>
+      </span>
+      <svg class="ico identite-chevron"><use href="#ico-reglages"/></svg>
+    </button>
+  </div>
+</header>
+
+<div id="app" hidden>
+  <!-- Colonne de navigation : uniquement les bénéficiaires. Tout ce qui
+       relève de la configuration a migré dans le panneau de réglages. -->
+  <aside id="barre-laterale" class="barre-laterale">
+    <div class="barre-entete">
+      <label class="champ-recherche">
+        <svg class="ico"><use href="#ico-recherche"/></svg>
+        <input type="search" id="recherche" placeholder="Rechercher…" aria-label="Rechercher un bénéficiaire" autocomplete="off" />
+      </label>
+      <button type="button" id="nouveau-beneficiaire-btn" class="btn btn-primaire btn-bloc" data-nouveau-beneficiaire>
+        <svg class="ico"><use href="#ico-plus"/></svg>
+        Nouveau bénéficiaire
+      </button>
+      <button type="button" id="suivi-btn" class="btn btn-secondaire btn-bloc" hidden>
+        <svg class="ico"><use href="#ico-document"/></svg>
+        Suivi des bilans
+      </button>
+    </div>
+    <nav id="liste-beneficiaires" class="liste-beneficiaires" aria-label="Bénéficiaires"></nav>
+  </aside>
+  <div id="voile" class="voile" hidden></div>
+
+  <main id="zone-travail" class="zone-travail">
+
+    <!-- 1. Accueil : mise en route guidée, puis simple invitation à choisir. -->
+    <section id="vue-accueil" class="vue">
+      <div id="accueil-demarrage" class="accueil">
+        <p class="accueil-surtitre">Mise en route</p>
+        <h1>Trois choses à définir avant le premier bilan</h1>
+        <p class="accueil-intro">
+          Une fois ces éléments en place, ils ne vous seront plus redemandés.
+        </p>
+        <ol class="etapes">
+          <li class="etape" data-etape="etablissement">
+            <span class="etape-puce"><span class="etape-numero">1</span><svg class="ico etape-check"><use href="#ico-check"/></svg></span>
+            <div class="etape-corps">
+              <h2>L'établissement</h2>
+              <p>Il porte le quota mensuel de bilans et regroupe les bénéficiaires qui lui sont rattachés.</p>
+              <button type="button" class="btn btn-secondaire" data-ouvrir-reglages="etablissement">Définir l'établissement</button>
+            </div>
+          </li>
+          <li class="etape" data-etape="educateur">
+            <span class="etape-puce"><span class="etape-numero">2</span><svg class="ico etape-check"><use href="#ico-check"/></svg></span>
+            <div class="etape-corps">
+              <h2>Votre profil d'éducateur</h2>
+              <p>Chaque bilan est enregistré au nom de son auteur.</p>
+              <button type="button" class="btn btn-secondaire" data-ouvrir-reglages="educateur">Définir l'éducateur</button>
+            </div>
+          </li>
+          <li class="etape" data-etape="beneficiaire">
+            <span class="etape-puce"><span class="etape-numero">3</span><svg class="ico etape-check"><use href="#ico-check"/></svg></span>
+            <div class="etape-corps">
+              <h2>Un premier bénéficiaire</h2>
+              <p>Nom, prénom, date de naissance. Rien d'autre n'est demandé.</p>
+              <button type="button" class="btn btn-secondaire" data-nouveau-beneficiaire>Ajouter un bénéficiaire</button>
+            </div>
+          </li>
+        </ol>
+      </div>
+
+      <div id="accueil-pret" class="accueil accueil-pret" hidden>
+        <span class="accueil-illustration"><svg class="ico"><use href="#ico-document"/></svg></span>
+        <h1>Choisissez un bénéficiaire</h1>
+        <p class="accueil-intro">
+          Sélectionnez une personne dans la colonne de gauche pour rédiger un
+          bilan ou relire les précédents.
+        </p>
+        <button type="button" class="btn btn-secondaire" data-nouveau-beneficiaire>
+          <svg class="ico"><use href="#ico-plus"/></svg>
+          Nouveau bénéficiaire
+        </button>
+      </div>
+    </section>
+
+    <!-- 2. Fiche d'un bénéficiaire : rédaction, historique, état civil. -->
+    <section id="vue-beneficiaire" class="vue" hidden>
+      <header class="fiche-entete">
+        <div class="fiche-identite">
+          <h1 id="beneficiaire-nom"></h1>
+          <p id="beneficiaire-meta" class="fiche-meta"></p>
+        </div>
+      </header>
+
+      <div class="onglets" role="tablist">
+        <button type="button" role="tab" class="onglet" data-onglet="redaction" aria-selected="true">
+          <svg class="ico"><use href="#ico-etincelle"/></svg> Rédiger
+        </button>
+        <button type="button" role="tab" class="onglet" data-onglet="bilans" aria-selected="false">
+          <svg class="ico"><use href="#ico-document"/></svg> Bilans
+          <span id="compteur-bilans" class="pastille" hidden>0</span>
+        </button>
+        <button type="button" role="tab" class="onglet" data-onglet="profil" aria-selected="false">
+          Fiche
+        </button>
+      </div>
+
+      <!-- Onglet Rédiger -->
+      <div id="panneau-redaction" class="panneau" role="tabpanel">
+        <section class="carte">
+          <h2 class="carte-titre">Type de bilan</h2>
+          <div id="types-bilan" class="types-bilan" role="radiogroup" aria-label="Type de bilan"></div>
+        </section>
+
+        <section class="carte">
+          <h2 class="carte-titre">Période couverte</h2>
+          <div id="periode-raccourcis" class="puces"></div>
+          <div class="periode-champs">
+            <label class="champ">
+              <span class="champ-label">Du</span>
+              <input type="date" id="periode-debut" />
+            </label>
+            <label class="champ">
+              <span class="champ-label">Au</span>
+              <input type="date" id="periode-fin" />
+            </label>
+          </div>
+        </section>
+
+        <!-- Trames Répit et Trimestriel : le document se remplit dans un
+             parcours guidé, il n'y a pas de compte-rendu libre à dicter. -->
+        <section class="carte" id="bloc-guide" hidden>
+          <h2 class="carte-titre" id="guide-titre"></h2>
+          <p class="aide" id="guide-aide"></p>
+          <label class="case" id="reprise-choix" hidden>
+            <input type="checkbox" id="reprise-case" />
+            <span id="reprise-libelle"></span>
+          </label>
+          <div class="saisie-barre">
+            <button type="button" id="ouvrir-parcours-btn" class="btn btn-primaire">
+              <svg class="ico"><use href="#ico-document"/></svg>
+              Commencer le bilan
+            </button>
+          </div>
+          <p id="guide-statut" class="statut" role="status" aria-live="polite"></p>
+        </section>
+
+        <section class="carte carte-saisie" id="bloc-redaction-libre">
+          <div class="carte-entete">
+            <h2 class="carte-titre">Compte-rendu de la période</h2>
+            <span id="saisie-compteur" class="compteur"></span>
+          </div>
+          <p class="aide">
+            Racontez la période comme vous la raconteriez à un collègue.
+            Le moteur reformule et classe, il n'invente rien : ce que vous ne
+            dites pas n'apparaîtra pas dans le bilan.
+          </p>
+
+          <div class="zone-saisie">
+            <textarea
+              id="saisie"
+              rows="12"
+              placeholder="Sur ce trimestre, Camille a…"
+              aria-label="Compte-rendu de la période"
+            ></textarea>
+          </div>
+
+          <div id="micro-progression" class="progression" hidden>
+            <div id="micro-progression-barre" class="progression-barre"></div>
+          </div>
+
+          <div class="saisie-barre">
+            <button type="button" id="micro-btn" class="btn btn-micro">
+              <svg class="ico" id="micro-icone"><use href="#ico-micro"/></svg>
+              <span id="micro-libelle">Dicter</span>
+            </button>
+            <span id="micro-statut" class="micro-statut" role="status" aria-live="polite"></span>
+            <button type="button" id="generer-btn" class="btn btn-primaire">
+              <svg class="ico"><use href="#ico-etincelle"/></svg>
+              Générer le bilan
+            </button>
+          </div>
+
+          <p id="redaction-statut" class="statut" role="status" aria-live="polite"></p>
+        </section>
+
+        <section id="generation-encours" class="carte carte-attente" hidden aria-live="polite">
+          <div class="attente-entete">
+            <span class="rotateur" aria-hidden="true"></span>
+            <div>
+              <h2 class="carte-titre">Rédaction en cours</h2>
+              <p id="generation-attente-detail" class="aide">Cela prend généralement une dizaine de secondes.</p>
+            </div>
+          </div>
+          <div class="squelette">
+            <span class="squelette-ligne l-40"></span>
+            <span class="squelette-ligne l-90"></span>
+            <span class="squelette-ligne l-70"></span>
+            <span class="squelette-ligne l-85"></span>
+            <span class="squelette-ligne l-55"></span>
+          </div>
+        </section>
+      </div>
+
+      <!-- Onglet Bilans -->
+      <div id="panneau-bilans" class="panneau" role="tabpanel" hidden>
+        <ul id="liste-bilans" class="liste-bilans"></ul>
+        <p id="bilans-vide" class="etat-vide" hidden>
+          Aucun bilan pour ce bénéficiaire. Rendez-vous dans l'onglet
+          « Rédiger » pour en produire un.
+        </p>
+      </div>
+
+      <!-- Onglet Fiche -->
+      <div id="panneau-profil" class="panneau" role="tabpanel" hidden>
+        <section class="carte">
+          <h2 class="carte-titre">État civil</h2>
+          <form id="profil-form" class="formulaire">
+            <div class="grille-deux">
+              <label class="champ">
+                <span class="champ-label">Prénom</span>
+                <input type="text" id="profil-prenom" required autocomplete="off" />
+              </label>
+              <label class="champ">
+                <span class="champ-label">Nom</span>
+                <input type="text" id="profil-nom" required autocomplete="off" />
+              </label>
+            </div>
+            <label class="champ">
+              <span class="champ-label">Date de naissance</span>
+              <input type="date" id="profil-date-naissance" />
+            </label>
+            <div class="formulaire-pied">
+              <button type="submit" id="profil-enregistrer" class="btn btn-secondaire">Enregistrer</button>
+              <span id="profil-statut" class="statut" role="status" aria-live="polite"></span>
+            </div>
+          </form>
+        </section>
+
+        <section class="carte" id="carte-effacement" hidden>
+          <h2 class="carte-titre">Effacement</h2>
+          <p class="aide">
+            Supprime définitivement ce bénéficiaire et tous ses bilans, y compris
+            ceux archivés. Répond au droit à l'effacement. L'opération est
+            irréversible ; seule la trace de la suppression est conservée dans le
+            journal.
+          </p>
+          <button type="button" id="supprimer-beneficiaire" class="btn btn-secondaire btn-danger">
+            <svg class="ico"><use href="#ico-corbeille"/></svg>
+            Supprimer ce bénéficiaire
+          </button>
+        </section>
+      </div>
+    </section>
+
+    <!-- 2 bis. Vue d'ensemble et journal, réservés au coordinateur. -->
+    <section id="vue-pilotage" class="vue" hidden>
+      <header class="fiche-entete">
+        <div class="fiche-identite">
+          <h1 id="pilotage-titre"></h1>
+          <p id="pilotage-meta" class="fiche-meta"></p>
+        </div>
+        <button type="button" id="pilotage-fermer" class="btn btn-secondaire">
+          <svg class="ico"><use href="#ico-fermer"/></svg>
+          Fermer
+        </button>
+      </header>
+      <div id="pilotage-corps" class="pilotage-corps"></div>
+    </section>
+
+    <!-- 3. Parcours guidé : une étape par écran, sans défilement. -->
+    <section id="vue-parcours" class="vue vue-parcours" hidden>
+      <header class="parcours-entete">
+        <button type="button" id="parcours-retour" class="btn-lien">
+          <svg class="ico"><use href="#ico-retour"/></svg>
+          <span id="parcours-retour-libelle">Retour</span>
+        </button>
+        <div class="bilan-titres">
+          <h1 id="parcours-titre"></h1>
+          <p id="parcours-beneficiaire" class="fiche-meta"></p>
+        </div>
+      </header>
+
+      <div class="parcours-progression">
+        <div class="parcours-progression-tete">
+          <h2 id="parcours-etape-titre"></h2>
+          <span id="parcours-position" class="compteur"></span>
+        </div>
+        <span class="quota-jauge">
+          <span id="parcours-jauge-barre" class="quota-jauge-barre"></span>
+        </span>
+      </div>
+
+      <p id="parcours-intro" class="aide parcours-intro" hidden></p>
+
+      <div id="parcours-corps" class="parcours-corps"></div>
+
+      <footer class="parcours-pied">
+        <button type="button" id="parcours-precedent" class="btn btn-secondaire">
+          <svg class="ico"><use href="#ico-retour"/></svg>
+          Précédent
+        </button>
+        <span id="parcours-statut" class="statut" role="status" aria-live="polite"></span>
+        <button type="button" id="parcours-enregistrer" class="btn btn-secondaire">
+          Enregistrer
+        </button>
+        <button type="button" id="parcours-suivant" class="btn btn-primaire">
+          Étape suivante
+        </button>
+        <button type="button" id="parcours-terminer" class="btn btn-primaire" hidden>
+          <svg class="ico"><use href="#ico-check"/></svg>
+          Terminer et relire
+        </button>
+      </footer>
+    </section>
+
+    <!-- 4. Lecture et relecture d'un bilan. -->
+    <section id="vue-bilan" class="vue" hidden>
+      <header class="bilan-entete">
+        <button type="button" id="bilan-retour" class="btn-lien">
+          <svg class="ico"><use href="#ico-retour"/></svg>
+          <span id="bilan-retour-libelle">Retour</span>
+        </button>
+        <div class="bilan-titres">
+          <h1 id="bilan-titre"></h1>
+          <p id="bilan-meta" class="fiche-meta"></p>
+        </div>
+        <span id="bilan-badge" class="badge"></span>
+        <div class="bilan-actions">
+          <a id="bilan-export" class="btn btn-secondaire" href="#" download>
+            <svg class="ico"><use href="#ico-telecharger"/></svg>
+            Exporter
+          </a>
+          <button type="button" id="bilan-reprendre" class="btn btn-secondaire" hidden>
+            <svg class="ico"><use href="#ico-retour"/></svg>
+            Reprendre la saisie
+          </button>
+          <button type="button" id="bilan-enregistrer" class="btn btn-secondaire">Enregistrer</button>
+          <button type="button" id="bilan-valider" class="btn btn-primaire">
+            <svg class="ico"><use href="#ico-check"/></svg>
+            Valider
+          </button>
+        </div>
+      </header>
+
+      <p id="bilan-consigne" class="encart">
+        Brouillon. Relisez chaque section : corrigez, complétez, supprimez ce
+        qui ne correspond pas. La validation archive le bilan définitivement.
+      </p>
+      <!-- Aucune date de validation n'est affichée : la base ne stocke pas
+           l'instant du passage en « validé ». Écrire « validé le … » avec un
+           blanc laisserait croire à une information perdue. -->
+      <p id="bilan-consigne-valide" class="encart encart-valide" hidden>
+        Bilan validé : il est archivé définitivement et n'est plus modifiable.
+        L'export reste disponible.
+      </p>
+
+      <div id="bilan-corps" class="bilan-corps"></div>
+
+      <p id="bilan-statut" class="statut" role="status" aria-live="polite"></p>
+
+      <details class="json-brut">
+        <summary>Données brutes (JSON)</summary>
+        <pre id="bilan-json"></pre>
+      </details>
+    </section>
+
+  </main>
+</div>
+
+<!-- Compte, établissement et équipe, en tiroir latéral. -->
+<dialog id="reglages" class="tiroir" aria-labelledby="reglages-titre">
+  <header class="tiroir-entete">
+    <h2 id="reglages-titre">Mon compte</h2>
+    <button type="button" id="reglages-fermer" class="btn-icone" aria-label="Fermer">
+      <svg class="ico"><use href="#ico-fermer"/></svg>
+    </button>
+  </header>
+
+  <div class="tiroir-corps">
+    <section class="tiroir-section" data-section="compte">
+      <h3>Compte</h3>
+      <p id="compte-identite" class="compte-identite"></p>
+      <p id="compte-role" class="aide"></p>
+      <details id="mot-de-passe-ajout">
+        <summary>Changer mon mot de passe</summary>
+        <div class="formulaire">
+          <label class="champ">
+            <span class="champ-label">Mot de passe actuel</span>
+            <input type="password" id="mdp-actuel" autocomplete="current-password" />
+          </label>
+          <label class="champ">
+            <span class="champ-label">Nouveau mot de passe</span>
+            <input type="password" id="mdp-nouveau" autocomplete="new-password" />
+            <span class="aide">Au moins 12 caractères. Vos autres sessions seront fermées.</span>
+          </label>
+          <button type="button" id="mdp-valider" class="btn btn-secondaire">Changer</button>
+          <p id="mdp-statut" class="statut" role="status" aria-live="polite"></p>
+        </div>
+      </details>
+      <button type="button" id="deconnexion-btn" class="btn btn-secondaire">
+        Se déconnecter
+      </button>
+    </section>
+
+    <section class="tiroir-section" data-section="etablissement" hidden>
+      <h3>Établissement</h3>
+      <p class="aide">
+        Ces coordonnées figurent en tête des documents exportés.
+      </p>
+      <div class="formulaire">
+        <label class="champ">
+          <span class="champ-label">Nom</span>
+          <input type="text" id="etab-nom" autocomplete="off" />
+        </label>
+        <label class="champ">
+          <span class="champ-label">Adresse</span>
+          <input type="text" id="etab-adresse" autocomplete="off" />
+        </label>
+        <div class="grille-deux">
+          <label class="champ">
+            <span class="champ-label">Téléphone</span>
+            <input type="text" id="etab-telephone" autocomplete="off" />
+          </label>
+          <label class="champ">
+            <span class="champ-label">Courriel</span>
+            <input type="text" id="etab-email" autocomplete="off" />
+          </label>
+        </div>
+        <label class="champ">
+          <span class="champ-label">Quota mensuel de bilans</span>
+          <input type="number" id="etab-quota" min="1" step="1" />
+        </label>
+        <button type="button" id="etab-enregistrer" class="btn btn-secondaire">
+          Enregistrer
+        </button>
+        <p id="etab-statut" class="statut" role="status" aria-live="polite"></p>
+      </div>
+      <p id="quota-detail" class="aide"></p>
+
+      <!-- La sauvegarde est manuelle, et l'interface le dit : rien ne se fait
+           tout seul, la date du dernier export est là pour qu'on s'en aperçoive. -->
+      <div class="bloc-sauvegarde">
+        <h4>Sauvegarde</h4>
+        <p class="aide">
+          Un fichier contenant tous les dossiers de la structure : bénéficiaires,
+          bilans et journal. Rangez-le comme la base elle-même — il en contient
+          autant.
+        </p>
+        <button type="button" id="sauvegarde-btn" class="btn btn-secondaire">
+          Télécharger la sauvegarde
+        </button>
+        <p id="sauvegarde-etat" class="aide"></p>
+      </div>
+    </section>
+
+    <section class="tiroir-section" data-section="equipe" hidden>
+      <h3>Équipe</h3>
+      <ul id="liste-equipe" class="liste-equipe"></ul>
+      <details id="educateur-ajout">
+        <summary>Ajouter un compte</summary>
+        <div class="formulaire">
+          <div class="grille-deux">
+            <label class="champ">
+              <span class="champ-label">Prénom</span>
+              <input type="text" id="auteur-prenom" autocomplete="off" />
+            </label>
+            <label class="champ">
+              <span class="champ-label">Nom</span>
+              <input type="text" id="auteur-nom" autocomplete="off" />
+            </label>
+          </div>
+          <label class="champ">
+            <span class="champ-label">Adresse électronique</span>
+            <input type="email" id="auteur-email" autocomplete="off" />
+          </label>
+          <label class="champ">
+            <span class="champ-label">Mot de passe provisoire</span>
+            <input type="password" id="auteur-mot-de-passe" autocomplete="new-password" />
+            <span class="aide">Au moins 12 caractères. La personne pourra le changer.</span>
+          </label>
+          <label class="champ">
+            <span class="champ-label">Rôle</span>
+            <select id="auteur-role">
+              <option value="educateur">Éducateur</option>
+              <option value="coordinateur">Coordinateur</option>
+            </select>
+          </label>
+          <button type="button" id="auteur-creer" class="btn btn-secondaire">Ajouter</button>
+          <p id="auteur-statut" class="statut" role="status" aria-live="polite"></p>
+        </div>
+      </details>
+    </section>
+
+    <section class="tiroir-section" data-section="journal" hidden>
+      <h3>Journal d'accès</h3>
+      <p class="aide">
+        Qui a consulté, modifié ou exporté quoi. Conservé pour répondre à une
+        demande d'audit ou à un signalement.
+      </p>
+      <button type="button" id="journal-btn" class="btn btn-secondaire">
+        Ouvrir le journal
+      </button>
+    </section>
+  </div>
+
+  <footer class="tiroir-pied">
+    <p class="aide" id="reglages-pied"></p>
+    <p class="aide">
+      Un problème sur ce poste — micro, affichage, lenteur ?
+      <a href="/diagnostic.html" target="_blank" rel="noopener">Diagnostiquer</a>
+    </p>
+  </footer>
+</dialog>
+
+<!-- Création d'un bénéficiaire. -->
+<dialog id="dlg-beneficiaire" class="modale" aria-labelledby="dlg-beneficiaire-titre">
+  <form method="dialog" id="beneficiaire-form">
+    <header class="modale-entete">
+      <h2 id="dlg-beneficiaire-titre">Nouveau bénéficiaire</h2>
+      <button type="button" class="btn-icone" data-fermer-modale aria-label="Fermer">
+        <svg class="ico"><use href="#ico-fermer"/></svg>
+      </button>
+    </header>
+    <div class="modale-corps formulaire">
+      <div class="grille-deux">
+        <label class="champ">
+          <span class="champ-label">Prénom</span>
+          <input type="text" id="nouveau-prenom" required autocomplete="off" />
+        </label>
+        <label class="champ">
+          <span class="champ-label">Nom</span>
+          <input type="text" id="nouveau-nom" required autocomplete="off" />
+        </label>
+      </div>
+      <label class="champ">
+        <span class="champ-label">Date de naissance</span>
+        <input type="date" id="nouveau-date-naissance" />
+      </label>
+      <p id="nouveau-etablissement-rappel" class="aide"></p>
+      <p id="nouveau-statut" class="statut" role="status" aria-live="polite"></p>
+    </div>
+    <footer class="modale-pied">
+      <button type="button" class="btn btn-secondaire" data-fermer-modale>Annuler</button>
+      <button type="submit" id="nouveau-creer" class="btn btn-primaire">Créer</button>
+    </footer>
+  </form>
+</dialog>
+
+<!-- Confirmation de validation : action irréversible, elle mérite un arrêt. -->
+<dialog id="dlg-validation" class="modale modale-etroite" aria-labelledby="dlg-validation-titre">
+  <div class="modale-entete">
+    <h2 id="dlg-validation-titre">Valider ce bilan ?</h2>
+  </div>
+  <div class="modale-corps">
+    <p>
+      Le bilan passera en archive définitive : ni son contenu ni son statut ne
+      pourront plus être modifiés. L'export restera disponible.
+    </p>
+  </div>
+  <footer class="modale-pied">
+    <button type="button" class="btn btn-secondaire" data-fermer-modale>Annuler</button>
+    <button type="button" id="validation-confirmer" class="btn btn-primaire">
+      <svg class="ico"><use href="#ico-check"/></svg>
+      Valider définitivement
+    </button>
+  </footer>
+</dialog>
+
+<div id="toasts" class="toasts" aria-live="polite" aria-atomic="false"></div>
+
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+services:
+  - type: web
+    name: outils-educsp-moteur-bilan
+    runtime: node
+    plan: free
+    branch: claude/moteur-bilan-spec-nxjqrc
+    # `--include=dev` est indispensable : avec NODE_ENV=production, npm omet
+    # les dépendances de développement, et ni tsc ni tsx ne seraient installés.
+    #
+    # `vendor:asr` ne télécharge plus rien ici : la bibliothèque de
+    # transcription est versionnée (sous sa forme compressée), et le script se
+    # contente d'en vérifier l'empreinte, hors ligne. S'il échoue, c'est que le
+    # dépôt ne contient pas ce qu'il annonce — et il vaut mieux le savoir à la
+    # construction qu'au premier clic sur le micro d'un éducateur.
+    # `--omit=optional` écarte la base embarquée : elle sert aux postes sans
+    # droits d'installation, pas à un déploiement qui a déjà son serveur
+    # PostgreSQL, et pèse une trentaine de mégaoctets.
+    buildCommand: npm ci --include=dev --omit=optional && npm run vendor:asr && npm run build
+    # Un seul point d'entrée, depuis le JavaScript compilé — tsx n'a pas à être
+    # présent au démarrage. Il applique les migrations puis démarre le serveur.
+    #
+    # Ce n'est plus `migrate && start` : cet enchaînement arrêtait tout au
+    # premier ordre quand la base était injoignable, et l'on n'obtenait pas
+    # même `/diagnostic.html`, la page faite pour dire ce qui ne va pas. Le
+    # script distingue désormais une base absente — on démarre en état dégradé,
+    # qui l'annonce — d'une migration refusée, où l'on s'arrête pour de bon.
+    startCommand: npm run start:prod
+    healthCheckPath: /health
+    envVars:
+      # Décide notamment que le cookie de session exige HTTPS. Sans cette
+      # variable, le cookie serait posé sans l'attribut `secure` et pourrait
+      # partir en clair si la connexion était un jour dégradée.
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: outils-educsp-db
+          property: connectionString
+      - key: LLM_PROVIDER
+        value: cerebras
+      - key: CEREBRAS_BASE_URL
+        value: https://api.cerebras.ai/v1
+      - key: CEREBRAS_MODEL
+        value: gpt-oss-120b
+      # Clé secrète : à renseigner manuellement dans le dashboard Render
+      # (Environment), jamais commitée dans ce fichier.
+      - key: CEREBRAS_API_KEY
+        sync: false
+      # La dictée vocale ne demande aucune variable : elle est transcrite dans
+      # le navigateur de l'éducateur, l'audio n'atteint jamais ce service.
+
+databases:
+  - name: outils-educsp-db
+    plan: free
+    databaseName: outils_educsp
+    user: outils_educsp
