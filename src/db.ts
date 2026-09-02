@@ -107,15 +107,46 @@ function creerPostgres(): BaseDeDonnees {
 // --- Base embarquée ---------------------------------------------------------
 
 /**
- * PGlite est publié en modules ES, alors que ce projet est en CommonJS : d'où
- * l'import dynamique, qui est de toute façon celui qu'on veut — le paquet ne
- * se charge que si l'on a demandé une base embarquée, et un déploiement
- * d'établissement n'en paie ni le poids ni le temps de chargement.
+ * Ce que nous utilisons de PGlite, décrit ici plutôt qu'importé de lui.
+ *
+ * Le paquet est optionnel : un déploiement d'établissement l'écarte
+ * (`--omit=optional`), et doit malgré tout compiler. S'appuyer sur ses types
+ * rendait la compilation impossible sans lui — l'erreur est apparue en
+ * construction, pas ici, faute d'avoir compilé une fois le paquet absent.
  */
+interface ClientPGlite {
+  query(
+    sql: string,
+    parametres?: unknown[]
+  ): Promise<{ rows: unknown[]; affectedRows?: number }>;
+  exec(sql: string): Promise<unknown>;
+  transaction<T>(travail: (tx: ClientPGlite) => Promise<T>): Promise<T>;
+  close(): Promise<void>;
+}
+
+interface ModulePGlite {
+  PGlite: {
+    create(chemin: string, options?: Record<string, unknown>): Promise<ClientPGlite>;
+  };
+}
+
+/**
+ * Import dynamique, préservé tel quel jusqu'à l'exécution.
+ *
+ * TypeScript compile ce projet en CommonJS et traduirait un `import()`
+ * ordinaire en `require()` — ce que PGlite, publié en modules ES, refuse. Ce
+ * détour par `new Function` laisse au moteur JavaScript un véritable
+ * `import()`, et empêche au passage le compilateur de réclamer un paquet qui
+ * peut légitimement être absent.
+ */
+const importerModule = new Function("nom", "return import(nom)") as (
+  nom: string
+) => Promise<unknown>;
+
 async function creerEmbarquee(): Promise<BaseDeDonnees> {
-  let module: typeof import("@electric-sql/pglite");
+  let module: ModulePGlite;
   try {
-    module = (await import("@electric-sql/pglite")) as never;
+    module = (await importerModule("@electric-sql/pglite")) as ModulePGlite;
   } catch {
     throw new Error(
       "DATABASE_URL demande une base embarquée, mais @electric-sql/pglite " +
@@ -127,10 +158,7 @@ async function creerEmbarquee(): Promise<BaseDeDonnees> {
     parsers: { [OID_DATE]: garderLaDate },
   });
 
-  const enrober = (cible: {
-    query: (t: string, p?: unknown[]) => Promise<{ rows: unknown[]; affectedRows?: number }>;
-    exec: (sql: string) => Promise<unknown>;
-  }): BaseDeDonnees => ({
+  const enrober = (cible: ClientPGlite): BaseDeDonnees => ({
     async query(texte, parametres) {
       const resultat = await cible.query(texte, parametres ?? []);
       return {

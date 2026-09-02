@@ -36,6 +36,32 @@ const migrations = () => {
     .map((nom) => ({ nom, sql: readFileSync(path.join(dossier, nom), "utf8") }));
 };
 
+/**
+ * Le paquet est optionnel — un déploiement d'établissement l'écarte par
+ * `--omit=optional`. Deux pièges en découlent, et tous deux se manifestent à
+ * la construction ou au démarrage sur l'hébergeur, jamais sur le poste de
+ * développement où le paquet est installé.
+ */
+describe("dépendance optionnelle", () => {
+  const source = readFileSync(
+    path.join(racineProjet(__dirname), "src", "db.ts"),
+    "utf8"
+  );
+
+  it("ne réclame pas ses types pour compiler", () => {
+    // `typeof import("@electric-sql/pglite")` rendait la compilation
+    // impossible sans le paquet : la construction échouait sur
+    // « Cannot find module », alors que la base embarquée n'y était pour rien.
+    expect(source).not.toMatch(/import\(["']@electric-sql\/pglite["']\)/);
+  });
+
+  it("charge le paquet par un import préservé jusqu'à l'exécution", () => {
+    // Compilé en CommonJS, un `import()` ordinaire devient `require()`, que
+    // PGlite — publié en modules ES — refuse. Le détour est délibéré.
+    expect(source).toContain('new Function("nom", "return import(nom)")');
+  });
+});
+
 describe("base embarquée", () => {
   it("applique toutes les migrations du projet, sans en adapter aucune", async () => {
     if (!PGlite) return;
