@@ -29,7 +29,7 @@
 // Alternatives si besoin : "onnx-community/whisper-tiny" (plus rapide, moins
 // précis) ou "onnx-community/whisper-small" (plus précis, nettement plus lent
 // sans WebGPU). Les dépôts "Xenova/whisper-*" sont équivalents.
-const MODELE = "onnx-community/whisper-base";
+export const MODELE = "onnx-community/whisper-base";
 
 /**
  * Précision des poids. `undefined` laisse transformers.js prendre la variante
@@ -43,7 +43,21 @@ const MODELE = "onnx-community/whisper-base";
  */
 const PRECISION = undefined;
 
-const BIBLIOTHEQUE = "/vendor/transformers.min.js";
+export const BIBLIOTHEQUE = "/vendor/transformers.min.js";
+
+/**
+ * Réglages d'appel de Whisper, partagés avec la page de comparaison des
+ * précisions : une comparaison qui ne transcrirait pas exactement comme
+ * l'application ne dirait rien de l'application.
+ */
+export const OPTIONS_TRANSCRIPTION = {
+  language: "fr",
+  task: "transcribe",
+  // Whisper traite des fenêtres de 30 s ; le recouvrement évite de couper
+  // un mot à la frontière de deux fenêtres sur les dictées longues.
+  chunk_length_s: 30,
+  stride_length_s: 5,
+};
 
 // Whisper travaille exclusivement en mono 16 kHz.
 const TAUX_ECHANTILLONNAGE = 16000;
@@ -198,7 +212,7 @@ function chargerTranscripteur(onProgression) {
  * `OfflineAudioContext` assure le rééchantillonnage et le mixage mono de
  * façon fiable sur tous les navigateurs.
  */
-async function versPcmMono16k(blob) {
+export async function versPcmMono16k(blob) {
   const donnees = await blob.arrayBuffer();
 
   const contexte = new (window.AudioContext || window.webkitAudioContext)();
@@ -247,14 +261,7 @@ export async function transcrire(blob, onEtape = () => {}) {
   });
 
   onEtape("Transcription en cours…");
-  const resultat = await transcripteur(pcm, {
-    language: "fr",
-    task: "transcribe",
-    // Whisper traite des fenêtres de 30 s ; le recouvrement évite de couper
-    // un mot à la frontière de deux fenêtres sur les dictées longues.
-    chunk_length_s: 30,
-    stride_length_s: 5,
-  });
+  const resultat = await transcripteur(pcm, OPTIONS_TRANSCRIPTION);
 
   const texte = (resultat?.text ?? "").trim();
   if (!texte) {

@@ -2404,3 +2404,61 @@ dialog::backdrop {
   #copier, .diagnostic-pied { display: none; }
   .controle { break-inside: avoid; }
 }
+
+/* Comparaison des précisions de dictée (page d'évaluation, non reliée à
+   l'interface : on y va par son adresse, comme au diagnostic). */
+.comparaison-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.comparaison-tableau-cadre {
+  overflow-x: auto; /* un écran étroit fait défiler le tableau, pas la page */
+}
+
+.comparaison-tableau {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.comparaison-tableau th,
+.comparaison-tableau td {
+  padding: 0.5rem 0.7rem;
+  text-align: left;
+  border-bottom: 1px solid var(--trait);
+}
+
+.comparaison-tableau thead th {
+  font-size: var(--t-sm);
+  vertical-align: bottom;
+}
+
+.comparaison-tableau tbody th {
+  font-weight: 550;
+  color: var(--texte-doux);
+}
+
+.comparaison-textes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.comparaison-textes h3 {
+  font-size: var(--t-sm);
+  color: var(--texte-doux);
+  margin-bottom: 0.35rem;
+}
+
+.comparaison-texte {
+  padding: 0.75rem;
+  background: var(--fond-creux);
+  border: 1px solid var(--trait);
+  border-radius: var(--r-sm);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}

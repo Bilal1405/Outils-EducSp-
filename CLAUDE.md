@@ -131,6 +131,15 @@ déploiement, emportant le diagnostic avec elle. Une base injoignable rend 503
 sur les routes, jamais « Erreur interne » ni « Session expirée ».
 `test/demarrageDegrade.test.ts` borde tout cela.
 
+`public/comparaison-dictee.html` mesure, sur le poste et avec la voix qui s'en
+servira, ce que coûte la variante quantifiée `q8` du modèle : poids
+téléchargés, temps de chargement, temps de transcription, et écart au mot entre
+les deux textes. La précision reste à `undefined` dans `transcription.js` — le
+choix se tranche sur des dictées réelles, pas sur des chiffres publiés, mesurés
+en studio sur du français lu. La page emprunte modèle et réglages à
+`transcription.js` : ne rien y recopier, sinon elle comparerait autre chose que
+l'outil. Aucun audio n'en sort, `test/comparaisonDictee.test.ts` le borde.
+
 `public/diagnostic.html` vérifie sur le poste tout ce dont l'application a
 besoin — navigateur, micro, origine sécurisée, écran, accès à huggingface.co et
 jsdelivr.net, présence de la bibliothèque côté serveur, base de données,
