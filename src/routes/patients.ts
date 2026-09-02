@@ -7,6 +7,11 @@ import {
   updatePatient,
   supprimerPatient,
 } from "../repositories/patientRepository";
+import {
+  enregistrerBrouillon,
+  getBrouillon,
+  supprimerBrouillon,
+} from "../repositories/brouillonRepository";
 import { journaliser } from "../services/auditService";
 import {
   adresseIp,
@@ -27,6 +32,85 @@ export const patientsRouter = creerRouteur();
 
 patientsRouter.get("/api/patients", async (req, res) => {
   res.json(await listPatients(etablissementDe(req)));
+});
+
+// --- Brouillon de saisie ----------------------------------------------------
+
+const BrouillonSchema = z.object({
+  texte: z.string().max(100_000),
+  periode_debut: z.string().nullable().optional(),
+  periode_fin: z.string().nullable().optional(),
+  source_dictee: z.boolean().optional(),
+});
+
+/**
+ * Le compte-rendu en cours de dictée, avant génération.
+ *
+ * Il appartient à son rédacteur : deux éducateurs qui préparent le même bilan
+ * ne se voient pas l'un l'autre, et ne s'écrasent pas.
+ *
+ * Volontairement hors du journal d'audit : la zone est enregistrée toutes les
+ * deux secondes de frappe, et une trace par frappe noierait le journal — dont
+ * l'intérêt est précisément d'être lisible. Le bilan qui en sort, lui, est
+ * journalisé à l'ouverture comme à la consultation.
+ */
+patientsRouter.get("/api/patients/:id/brouillon", async (req, res) => {
+  const etablissementId = etablissementDe(req);
+  const patient = await getPatientById(req.params.id, etablissementId);
+  if (!patient) {
+    return res.status(404).json({ error: "Bénéficiaire introuvable" });
+  }
+
+  const brouillon = await getBrouillon(
+    req.params.id,
+    req.utilisateur!.id,
+    etablissementId
+  );
+  return res.json(brouillon);
+});
+
+patientsRouter.put("/api/patients/:id/brouillon", async (req, res) => {
+  const parsed = BrouillonSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res
+      .status(400)
+      .json({ error: "Requête invalide", details: parsed.error.flatten() });
+  }
+
+  const etablissementId = etablissementDe(req);
+  const patient = await getPatientById(req.params.id, etablissementId);
+  if (!patient) {
+    return res.status(404).json({ error: "Bénéficiaire introuvable" });
+  }
+
+  // Un brouillon vide n'est pas un brouillon : le conserver reviendrait à
+  // garder une donnée de santé sans raison.
+  if (parsed.data.texte.trim() === "") {
+    await supprimerBrouillon(req.params.id, req.utilisateur!.id, etablissementId);
+    return res.status(204).end();
+  }
+
+  const brouillon = await enregistrerBrouillon(
+    req.params.id,
+    req.utilisateur!.id,
+    etablissementId,
+    {
+      texte: parsed.data.texte,
+      periodeDebut: parsed.data.periode_debut || null,
+      periodeFin: parsed.data.periode_fin || null,
+      sourceDictee: parsed.data.source_dictee ?? false,
+    }
+  );
+  return res.json(brouillon);
+});
+
+patientsRouter.delete("/api/patients/:id/brouillon", async (req, res) => {
+  await supprimerBrouillon(
+    req.params.id,
+    req.utilisateur!.id,
+    etablissementDe(req)
+  );
+  return res.status(204).end();
 });
 
 patientsRouter.get("/api/patients/:id", async (req, res) => {

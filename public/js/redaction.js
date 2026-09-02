@@ -11,17 +11,29 @@ import { $, creer, formatDate, notifier, statut, vider } from "./ui.js";
 import { afficherQuota, rafraichirQuota } from "./reglages.js";
 
 /**
- * Brouillons de saisie, conservés uniquement en mémoire.
+ * Brouillons de saisie, en mémoire de l'onglet et sur le serveur.
  *
- * Changer de bénéficiaire ne doit pas effacer un compte-rendu à moitié dicté.
- * Le stockage local est volontairement écarté : y écrire un compte-rendu
- * reviendrait à déposer des données de bénéficiaire sur le disque du poste,
- * hors de toute maîtrise. Fermer l'onglet efface donc tout, et c'est voulu.
+ * Le stockage du navigateur reste écarté : y écrire un compte-rendu déposerait
+ * des données de bénéficiaire sur le disque du poste, hors de toute maîtrise.
+ * Mais s'en tenir à la mémoire de l'onglet avait une conséquence qui, elle,
+ * n'était pas assumée : un rechargement ou une fermeture accidentelle effaçait
+ * dix minutes de dictée relue, et on ne re-dicte pas ce qu'on a dit.
+ *
+ * Le brouillon part donc au serveur, où il est cloisonné par établissement,
+ * réservé à son rédacteur et effacé avec le bénéficiaire — comme le reste. La
+ * mémoire locale demeure en première ligne : elle est à jour à la frappe près
+ * et fait tenir le changement de fiche sans aller-retour.
  */
 const brouillons = new Map();
 
 let dicteeUtilisee = false;
 let chronoAttente = null;
+/** Envoi différé du brouillon au serveur (cf. `planifierEnvoiBrouillon`). */
+let chronoBrouillon = null;
+/** Dernier état effectivement accepté par le serveur, pour ne pas le réécrire. */
+let derniereEmpreinteEnvoyee = null;
+/** Un envoi a-t-il échoué, laissant de la saisie non enregistrée ? */
+let brouillonEnAttente = false;
 /** Un téléchargement de modèle occupe-t-il la ligne d'état ? */
 let preparationAffichee = false;
 
@@ -119,19 +131,107 @@ function memoriserBrouillon() {
     fin: $("periode-fin").value,
     dictee: dicteeUtilisee,
   });
+  planifierEnvoiBrouillon(etat.beneficiaireId);
 }
 
-export function restaurerBrouillon() {
-  const brouillon = brouillons.get(etat.beneficiaireId) || {
-    texte: "",
-    debut: "",
-    fin: "",
-    dictee: false,
+/**
+ * Envoi différé du brouillon au serveur.
+ *
+ * Deux secondes après la dernière frappe : assez court pour qu'une fermeture
+ * accidentelle ne coûte qu'une phrase, assez long pour ne pas produire une
+ * requête par caractère. L'identifiant du bénéficiaire est figé au moment de
+ * la planification — sans quoi un changement de fiche pendant le délai
+ * écrirait le texte de l'un sur le brouillon de l'autre.
+ */
+function planifierEnvoiBrouillon(beneficiaireId) {
+  clearTimeout(chronoBrouillon);
+  chronoBrouillon = setTimeout(() => envoyerBrouillon(beneficiaireId), 2000);
+}
+
+async function envoyerBrouillon(beneficiaireId) {
+  const brouillon = brouillons.get(beneficiaireId);
+  if (!brouillon) return;
+
+  const empreinte = JSON.stringify(brouillon);
+  if (empreinte === derniereEmpreinteEnvoyee) return;
+
+  try {
+    await api.enregistrerBrouillon(beneficiaireId, {
+      texte: brouillon.texte,
+      periode_debut: brouillon.debut || null,
+      periode_fin: brouillon.fin || null,
+      source_dictee: brouillon.dictee,
+    });
+    derniereEmpreinteEnvoyee = empreinte;
+    brouillonEnAttente = false;
+  } catch {
+    // Le texte reste à l'écran et en mémoire : rien n'est perdu tant que
+    // l'onglet vit. C'est `avantFermeture` qui préviendra si la personne
+    // ferme avant que le réseau soit revenu.
+    brouillonEnAttente = true;
+  }
+}
+
+/** Reste-t-il de la saisie que le serveur n'a pas reçue ? */
+export function brouillonNonEnvoye() {
+  const brouillon = brouillons.get(etat.beneficiaireId);
+  if (!brouillon || brouillon.texte.trim() === "") return false;
+  return brouillonEnAttente || JSON.stringify(brouillon) !== derniereEmpreinteEnvoyee;
+}
+
+/**
+ * Restaure ce qui était en cours pour ce bénéficiaire.
+ *
+ * La mémoire de l'onglet d'abord — elle est à jour à la frappe près — puis le
+ * serveur, qui seul survit à un rechargement ou à un changement de poste.
+ */
+export async function restaurerBrouillon() {
+  const beneficiaireId = etat.beneficiaireId;
+  const enMemoire = brouillons.get(beneficiaireId);
+
+  // L'écran est repeint tout de suite, avec ce qu'on a. Attendre le serveur
+  // laisserait à l'affichage, le temps d'un aller-retour, le compte-rendu du
+  // bénéficiaire précédent : c'est le genre de confusion qu'on ne rattrape pas.
+  afficherBrouillon(enMemoire);
+
+  if (enMemoire || !beneficiaireId) return;
+
+  let enregistre = null;
+  try {
+    enregistre = await api.brouillon(beneficiaireId);
+  } catch {
+    // Brouillon indisponible : la saisie reste vierge plutôt que de bloquer
+    // l'écran. Rien n'est écrasé — l'enregistrement ne part qu'à la première
+    // frappe.
+    return;
+  }
+
+  // La personne a pu changer de fiche, ou commencer à écrire, pendant l'appel.
+  if (etat.beneficiaireId !== beneficiaireId || !enregistre) return;
+  if ($("saisie").value.trim() !== "") return;
+
+  const brouillon = {
+    texte: enregistre.texte,
+    debut: enregistre.periode_debut || "",
+    fin: enregistre.periode_fin || "",
+    dictee: enregistre.source_dictee,
   };
-  $("saisie").value = brouillon.texte;
-  $("periode-debut").value = brouillon.debut;
-  $("periode-fin").value = brouillon.fin;
-  dicteeUtilisee = brouillon.dictee;
+  brouillons.set(beneficiaireId, brouillon);
+  derniereEmpreinteEnvoyee = JSON.stringify(brouillon);
+  afficherBrouillon(brouillon);
+  statut(
+    $("redaction-statut"),
+    "Compte-rendu en cours repris là où vous l'aviez laissé."
+  );
+}
+
+/** Peint la zone de rédaction à partir d'un brouillon, ou à vide. */
+function afficherBrouillon(brouillon) {
+  const valeurs = brouillon || { texte: "", debut: "", fin: "", dictee: false };
+  $("saisie").value = valeurs.texte;
+  $("periode-debut").value = valeurs.debut;
+  $("periode-fin").value = valeurs.fin;
+  dicteeUtilisee = valeurs.dictee;
 
   marquerRaccourciActif();
   majCompteur();
@@ -382,9 +482,18 @@ async function generer() {
       afficherQuota(resultat.quota);
     }
 
-    // Le compte-rendu a produit son bilan : le brouillon n'a plus lieu d'être.
+    // Le compte-rendu a produit son bilan : le brouillon n'a plus lieu d'être,
+    // ni en mémoire ni en base — c'est une donnée de santé qu'on ne garde pas
+    // sans raison. L'envoi différé encore en attente est annulé, sans quoi il
+    // recréerait ce qu'on vient d'effacer.
+    clearTimeout(chronoBrouillon);
     brouillons.delete(etat.beneficiaireId);
+    derniereEmpreinteEnvoyee = null;
+    brouillonEnAttente = false;
     dicteeUtilisee = false;
+    api.supprimerBrouillon(etat.beneficiaireId).catch(() => {
+      /* Le bilan est enregistré : un brouillon résiduel ne doit pas alarmer. */
+    });
 
     notifier("Bilan rédigé. Relisez-le avant de le valider.", "ok");
     emettre("bilan-genere", {

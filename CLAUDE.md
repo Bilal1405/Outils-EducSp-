@@ -88,6 +88,14 @@ coupure de base faisait tomber l'application entière au lieu de rendre une
 requête en erreur. `test/asynchrone.test.ts` refuse tout fichier de routes qui
 s'en écarte.
 
+Rien de ce que l'éducateur saisit ne doit tenir à la vie d'un onglet. Le
+compte-rendu en cours est enregistré au serveur deux secondes après la dernière
+frappe (`brouillons_saisie`, un par bénéficiaire et par rédacteur, effacé dès
+qu'il a produit son bilan) ; le parcours guidé s'enregistre vingt secondes après
+la dernière modification et quand l'onglet passe en arrière-plan ; `beforeunload`
+retient la fermeture s'il reste quelque chose en jeu. Le stockage du navigateur
+reste écarté : il déposerait des données de santé sur le disque du poste.
+
 Journal d'audit (`audit_logs`) : lectures comprises. Effacement d'un
 bénéficiaire en cascade, la trace survit à l'effacement. L'écriture ne bloque
 pas la réponse (`journaliser` rend la main aussitôt) : ne pas la remettre sur

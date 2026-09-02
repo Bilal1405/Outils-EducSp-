@@ -32,11 +32,12 @@ import {
 import {
   initRedaction,
   restaurerBrouillon,
+  brouillonNonEnvoye,
   arreterDicteeSiActive,
   planifierPreparationDictee,
 } from "./redaction.js";
 import { initBilan, ouvrirBilan } from "./bilan.js";
-import { initParcours, ouvrirParcours } from "./parcours.js";
+import { initParcours, ouvrirParcours, parcoursModifie } from "./parcours.js";
 import { initPilotage, ouvrirJournal, ouvrirTableauDeBord } from "./pilotage.js";
 import { ouvrirPortail } from "./portail.js";
 
@@ -196,6 +197,28 @@ function initBarreLaterale() {
   });
 }
 
+/**
+ * Fermeture de l'onglet alors que du travail n'est pas enregistré.
+ *
+ * Le bouton « Retour » d'un parcours demandait déjà confirmation ; fermer la
+ * fenêtre, non — c'est pourtant le geste le plus fréquent, et le seul qui ne
+ * pardonne pas. Le navigateur n'autorise qu'un texte générique, mais il
+ * autorise l'arrêt, et c'est ce qui compte.
+ *
+ * Le message n'apparaît que si quelque chose est réellement en jeu : sinon
+ * l'éducateur apprend à cliquer « Quitter » sans lire, et l'avertissement ne
+ * vaut plus rien le jour où il compte.
+ */
+function initAvertissementFermeture() {
+  window.addEventListener("beforeunload", (evenement) => {
+    if (!parcoursModifie() && !brouillonNonEnvoye()) return;
+    evenement.preventDefault();
+    // Exigé par les navigateurs anciens ; les récents n'affichent que leur
+    // propre formulation.
+    evenement.returnValue = "";
+  });
+}
+
 function initRaccourcis() {
   document.addEventListener("keydown", (evenement) => {
     const cible = evenement.target;
@@ -236,6 +259,7 @@ function demarrer(donnees) {
   initOnglets();
   initBarreLaterale();
   initRaccourcis();
+  initAvertissementFermeture();
 
   sur("beneficiaires-charges", majAccueil);
   sur("ouvrir-journal", ouvrirJournal);

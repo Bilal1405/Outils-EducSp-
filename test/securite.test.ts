@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 
+vi.mock("../src/repositories/brouillonRepository", () => ({
+  getBrouillon: vi.fn().mockResolvedValue(null),
+  enregistrerBrouillon: vi.fn().mockResolvedValue({}),
+  supprimerBrouillon: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("../src/repositories/patientRepository", () => ({
   listPatients: vi.fn().mockResolvedValue([]),
   getPatientById: vi.fn(),
@@ -62,6 +68,11 @@ import {
   supprimerPatient,
 } from "../src/repositories/patientRepository";
 import { getBilanById } from "../src/repositories/bilanRepository";
+import {
+  enregistrerBrouillon,
+  getBrouillon,
+  supprimerBrouillon,
+} from "../src/repositories/brouillonRepository";
 import { getEtablissementById } from "../src/repositories/etablissementRepository";
 import { listUtilisateurs } from "../src/repositories/utilisateurRepository";
 import { getQuotaStatus } from "../src/services/quotaService";
@@ -90,6 +101,7 @@ describe("aucune session", () => {
     "/api/amorcage",
     "/api/patients",
     "/api/patients/patient-1",
+    "/api/patients/patient-1/brouillon",
     "/api/patients/patient-1/bilans",
     "/api/bilans/bilan-1",
     "/api/bilans/bilan-1/export.docx",
@@ -109,6 +121,8 @@ describe("aucune session", () => {
 
   const routesEcriture: [string, string][] = [
     ["post", "/api/patients"],
+    ["put", "/api/patients/patient-1/brouillon"],
+    ["delete", "/api/patients/patient-1/brouillon"],
     ["patch", "/api/patients/patient-1"],
     ["delete", "/api/patients/patient-1"],
     ["post", "/api/patients/patient-1/bilans"],
@@ -125,7 +139,9 @@ describe("aucune session", () => {
         ? agent.post(route)
         : methode === "patch"
           ? agent.patch(route)
-          : agent.delete(route);
+          : methode === "put"
+            ? agent.put(route)
+            : agent.delete(route);
 
     // L'en-tête anti-CSRF est fourni : ce qui est vérifié ici est bien
     // l'absence de session, pas le rejet CSRF qui la précède.
@@ -245,6 +261,72 @@ describe("amorçage", () => {
     await connecte(request(app).get("/api/amorcage"));
 
     expect(listUtilisateurs).toHaveBeenCalledWith("etab-1");
+  });
+});
+
+/**
+ * Le brouillon de saisie est du texte dicté sur un bénéficiaire : une donnée
+ * de santé, avec les mêmes exigences que le reste. Deux frontières à tenir —
+ * l'établissement, et le rédacteur.
+ */
+describe("brouillon de saisie", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    reinitialiserLimitation();
+    bouchonnerSession(resoudreSession);
+    vi.mocked(getPatientById).mockResolvedValue({
+      id: "patient-1",
+      nom: "Dupont",
+      prenom: "Alice",
+      date_naissance: null,
+      etablissement_id: "etab-1",
+    });
+  });
+
+  it("ne lit que le sien, dans son établissement", async () => {
+    await connecte(request(app).get("/api/patients/patient-1/brouillon"));
+
+    expect(getBrouillon).toHaveBeenCalledWith("patient-1", "auteur-1", "etab-1");
+  });
+
+  it("refuse un bénéficiaire d'un autre établissement", async () => {
+    vi.mocked(getPatientById).mockResolvedValue(null);
+
+    const res = await connecte(
+      request(app)
+        .put("/api/patients/patient-dautrui/brouillon")
+        .send({ texte: "essai" })
+    );
+
+    expect(res.status).toBe(404);
+    expect(enregistrerBrouillon).not.toHaveBeenCalled();
+  });
+
+  it("écrit au nom du rédacteur de la session, jamais d'un autre", async () => {
+    await connecte(
+      request(app)
+        .put("/api/patients/patient-1/brouillon")
+        .send({ texte: "séance du matin", utilisateur_id: "quelquun-dautre" })
+    );
+
+    expect(enregistrerBrouillon).toHaveBeenCalledWith(
+      "patient-1",
+      "auteur-1",
+      "etab-1",
+      expect.objectContaining({ texte: "séance du matin" })
+    );
+  });
+
+  it("efface plutôt que de conserver un brouillon vidé", async () => {
+    // Un texte effacé par l'éducateur est une donnée de santé qu'on ne garde
+    // pas « au cas où ».
+    const res = await connecte(
+      request(app).put("/api/patients/patient-1/brouillon").send({ texte: "   " })
+    );
+
+    expect(res.status).toBe(204);
+    expect(supprimerBrouillon).toHaveBeenCalledWith("patient-1", "auteur-1", "etab-1");
+    expect(enregistrerBrouillon).not.toHaveBeenCalled();
   });
 });
 

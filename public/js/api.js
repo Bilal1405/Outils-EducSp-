@@ -115,6 +115,14 @@ export const api = {
   creerBeneficiaire: (corps) => envoyer("/api/patients", "POST", corps),
   modifierBeneficiaire: (id, corps) => envoyer(`/api/patients/${id}`, "PATCH", corps),
 
+  // Brouillon de saisie : propre à son rédacteur, effacé dès qu'il a produit
+  // son bilan.
+  brouillon: (beneficiaireId) => requete(`/api/patients/${beneficiaireId}/brouillon`),
+  enregistrerBrouillon: (beneficiaireId, corps) =>
+    envoyer(`/api/patients/${beneficiaireId}/brouillon`, "PUT", corps),
+  supprimerBrouillon: (beneficiaireId) =>
+    envoyer(`/api/patients/${beneficiaireId}/brouillon`, "DELETE"),
+
   listerBilans: (beneficiaireId) =>
     requete(`/api/patients/${beneficiaireId}/bilans`),
   bilan: (id) => requete(`/api/bilans/${id}`),

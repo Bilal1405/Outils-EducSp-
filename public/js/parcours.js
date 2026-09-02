@@ -33,6 +33,44 @@ function marquerModifie(cleBloc) {
     parcours.revus.add(cleBloc);
   }
   majPied();
+  planifierEnregistrement();
+}
+
+/**
+ * Enregistrement automatique en cours d'étape.
+ *
+ * Le passage à l'étape suivante enregistrait déjà. Restait un trou : une étape
+ * avec une grande zone de commentaire peut occuper un quart d'heure, et tout
+ * ce qui y était saisi tenait à la vie de l'onglet. Vingt secondes après la
+ * dernière frappe — pas à chaque caractère, pour ne pas transformer une saisie
+ * en rafale de requêtes.
+ *
+ * Silencieux : c'est un filet, pas une action de l'utilisateur. Ce qu'il voit,
+ * c'est la mention d'état du pied de page, qui cesse d'annoncer des
+ * modifications non enregistrées.
+ */
+const DELAI_ENREGISTREMENT_MS = 20000;
+let chronoEnregistrement = null;
+
+function planifierEnregistrement() {
+  clearTimeout(chronoEnregistrement);
+  chronoEnregistrement = setTimeout(() => {
+    const parcours = courant();
+    if (parcours && parcours.modifie) {
+      enregistrer({ silencieux: true });
+    }
+  }, DELAI_ENREGISTREMENT_MS);
+}
+
+/**
+ * L'onglet passe à l'arrière-plan, ou l'ordinateur se ferme : le moment le
+ * plus probable d'un abandon, et le dernier où l'on peut encore écrire.
+ */
+function enregistrerSiEclipse() {
+  const parcours = courant();
+  if (document.visibilityState === "hidden" && parcours && parcours.modifie) {
+    enregistrer({ silencieux: true });
+  }
 }
 
 /**
@@ -802,6 +840,8 @@ export function confirmerAbandonParcours() {
 }
 
 export function initParcours() {
+  document.addEventListener("visibilitychange", enregistrerSiEclipse);
+
   $("parcours-precedent").addEventListener("click", () => allerA(courant().etape - 1));
   $("parcours-suivant").addEventListener("click", () => allerA(courant().etape + 1));
   $("parcours-enregistrer").addEventListener("click", () => enregistrer());
