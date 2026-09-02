@@ -25,6 +25,7 @@ export function estCoordinateur() {
 export function ouvrirReglages(section) {
   const tiroir = $("reglages");
   tiroir.showModal();
+  majEtatSauvegarde();
 
   if (!section) return;
   const cible = tiroir.querySelector(`[data-section="${section}"]`);
@@ -294,7 +295,57 @@ async function changerMotDePasse() {
   }
 }
 
+/**
+ * Rappel du dernier export.
+ *
+ * La sauvegarde est manuelle : la seule chose qui empêche de l'oublier est de
+ * voir, à chaque passage dans les réglages, depuis combien de temps elle date.
+ * Au-delà d'une semaine, la mention change de ton — sans alarmer pour rien un
+ * établissement qui vient de la faire.
+ */
+const JOURS_AVANT_RAPPEL = 7;
+
+async function majEtatSauvegarde() {
+  if (!estCoordinateur()) return;
+  const ligne = $("sauvegarde-etat");
+
+  try {
+    const { derniere } = await api.etatSauvegarde();
+    if (!derniere) {
+      ligne.textContent = "Aucune sauvegarde n'a encore été téléchargée.";
+      ligne.classList.add("aide-alerte");
+      return;
+    }
+    const jours = Math.floor((Date.now() - new Date(derniere)) / 86400000);
+    ligne.textContent =
+      jours === 0
+        ? "Dernière sauvegarde : aujourd'hui."
+        : `Dernière sauvegarde il y a ${jours} jour${jours > 1 ? "s" : ""}.`;
+    ligne.classList.toggle("aide-alerte", jours >= JOURS_AVANT_RAPPEL);
+  } catch {
+    ligne.textContent = "";
+  }
+}
+
+/**
+ * Le téléchargement passe par une navigation plutôt que par `fetch` : c'est ce
+ * qui laisse le navigateur proposer l'enregistrement du fichier, avec le nom
+ * daté que le serveur lui donne, sans le faire transiter par la mémoire de la
+ * page.
+ */
+function telechargerSauvegarde() {
+  const lien = document.createElement("a");
+  lien.href = api.lienSauvegarde();
+  lien.download = "";
+  document.body.append(lien);
+  lien.click();
+  lien.remove();
+  // Le journal met un instant à enregistrer l'export ; on relit ensuite.
+  setTimeout(majEtatSauvegarde, 1500);
+}
+
 export function initReglages() {
+  $("sauvegarde-btn").addEventListener("click", telechargerSauvegarde);
   $("reglages-btn").addEventListener("click", () => ouvrirReglages());
   $("reglages-fermer").addEventListener("click", () => $("reglages").close());
 

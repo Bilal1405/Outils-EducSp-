@@ -34,6 +34,7 @@ export const ACTIONS = [
   "utilisateur_desactive",
   "mot_de_passe_change",
   "reformulation",
+  "sauvegarde_exportee",
 ] as const;
 
 export type ActionAudit = (typeof ACTIONS)[number];

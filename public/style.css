@@ -2072,6 +2072,30 @@ dialog::backdrop {
   background: var(--trait);
 }
 
+/* Bloc de sauvegarde, dans les réglages : séparé de la fiche établissement,
+   parce que ce n'est pas un réglage mais une action, et qu'on doit la voir. */
+.bloc-sauvegarde {
+  margin-top: 1.25rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--trait);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+
+.bloc-sauvegarde h4 {
+  margin: 0;
+  font-size: var(--t-base);
+  font-weight: 600;
+}
+
+/* Une mention d'aide qui appelle une action, sans crier. */
+.aide-alerte {
+  color: var(--attention);
+  font-weight: 550;
+}
+
 .portail-mention {
   margin-top: 1.35rem;
   padding-top: 1rem;

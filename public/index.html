@@ -606,6 +606,21 @@
         <p id="etab-statut" class="statut" role="status" aria-live="polite"></p>
       </div>
       <p id="quota-detail" class="aide"></p>
+
+      <!-- La sauvegarde est manuelle, et l'interface le dit : rien ne se fait
+           tout seul, la date du dernier export est là pour qu'on s'en aperçoive. -->
+      <div class="bloc-sauvegarde">
+        <h4>Sauvegarde</h4>
+        <p class="aide">
+          Un fichier contenant tous les dossiers de la structure : bénéficiaires,
+          bilans et journal. Rangez-le comme la base elle-même — il en contient
+          autant.
+        </p>
+        <button type="button" id="sauvegarde-btn" class="btn btn-secondaire">
+          Télécharger la sauvegarde
+        </button>
+        <p id="sauvegarde-etat" class="aide"></p>
+      </div>
     </section>
 
     <section class="tiroir-section" data-section="equipe" hidden>

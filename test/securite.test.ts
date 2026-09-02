@@ -1,6 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 
+vi.mock("../src/services/sauvegardeService", () => ({
+  exporterEtablissement: vi.fn().mockResolvedValue({
+    version: 1,
+    exporte_le: "2026-08-19T10:00:00.000Z",
+    etablissement: { id: "etab-1", nom: "PCPE" },
+    utilisateurs: [],
+    beneficiaires: [],
+    bilans: [],
+    quotas: [],
+    audit: [],
+  }),
+  dateDerniereSauvegarde: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock("../src/repositories/brouillonRepository", () => ({
   getBrouillon: vi.fn().mockResolvedValue(null),
   enregistrerBrouillon: vi.fn().mockResolvedValue({}),
@@ -76,6 +90,7 @@ import {
 import { getEtablissementById } from "../src/repositories/etablissementRepository";
 import { listUtilisateurs } from "../src/repositories/utilisateurRepository";
 import { getQuotaStatus } from "../src/services/quotaService";
+import { exporterEtablissement } from "../src/services/sauvegardeService";
 import { resoudreSession } from "../src/services/sessionService";
 import { createApp } from "../src/app";
 import { bouchonnerSession, connecte, JETON_TEST } from "./aide/session";
@@ -109,6 +124,7 @@ describe("aucune session", () => {
     "/api/etablissement",
     "/api/etablissement/quota",
     "/api/etablissement/audit",
+    "/api/etablissement/sauvegarde",
     "/api/tableau-de-bord",
     "/api/schema/bilan",
     "/api/schema/modeles",
@@ -381,6 +397,36 @@ describe("rôles", () => {
     bouchonnerSession(resoudreSession, { role: "educateur" });
     const res = await connecte(request(app).get("/api/etablissement/audit"));
     expect(res.status).toBe(403);
+  });
+
+  /**
+   * Une sauvegarde, c'est l'intégralité des dossiers dans un fichier qui
+   * quittera l'application. Le rôle qui l'autorise est donc le même que celui
+   * du journal d'audit, et pour la même raison.
+   */
+  it("refuse la sauvegarde complète à un éducateur", async () => {
+    bouchonnerSession(resoudreSession, { role: "educateur" });
+    const res = await connecte(request(app).get("/api/etablissement/sauvegarde"));
+    expect(res.status).toBe(403);
+    expect(exporterEtablissement).not.toHaveBeenCalled();
+  });
+
+  it("l'autorise au coordinateur, et laisse une trace de qui l'a emportée", async () => {
+    bouchonnerSession(resoudreSession, { role: "coordinateur" });
+
+    const res = await connecte(request(app).get("/api/etablissement/sauvegarde"));
+
+    expect(res.status).toBe(200);
+    expect(exporterEtablissement).toHaveBeenCalledWith("etab-1");
+    expect(res.headers["content-disposition"]).toContain("sauvegarde-bilans-");
+    // Ce fichier ne doit rester ni dans un cache navigateur ni chez un
+    // intermédiaire.
+    expect(res.headers["cache-control"]).toBe("no-store");
+
+    const { journaliser } = await import("../src/services/auditService");
+    expect(journaliser).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "sauvegarde_exportee" })
+    );
   });
 
   it("refuse le tableau de bord à un éducateur", async () => {

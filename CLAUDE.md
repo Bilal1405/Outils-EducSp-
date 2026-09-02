@@ -101,6 +101,13 @@ bénéficiaire en cascade, la trace survit à l'effacement. L'écriture ne bloqu
 pas la réponse (`journaliser` rend la main aussitôt) : ne pas la remettre sur
 le chemin critique, et ne pas en déduire l'issue d'une action.
 
+Sauvegarde : `GET /api/etablissement/sauvegarde` (coordinateur) rend un JSON
+téléchargeable de tout l'établissement, sans les empreintes de mots de passe —
+un fichier de sauvegarde circule. `scripts/restaurer-sauvegarde.mjs` le
+réinjecte dans une base vide, dans une transaction, et refuse une base qui
+contient déjà des dossiers. L'ancien `npm run sauvegarde` reste bon en local ;
+en ligne il écrivait dans le conteneur, effacé à chaque redéploiement.
+
 Reste : transfert des comptes-rendus vers Cerebras (États-Unis) — non traité à
 la demande explicite de l'utilisateur ; chiffrement de `contenu` au repos ;
 Stripe ; gabarits RGPD.

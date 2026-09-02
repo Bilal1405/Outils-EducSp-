@@ -135,4 +135,6 @@ export const api = {
     envoyer(`/api/patients/${beneficiaireId}/bilans/generate`, "POST", corps),
 
   lienExport: (bilanId) => `/api/bilans/${bilanId}/export.docx`,
+  lienSauvegarde: () => "/api/etablissement/sauvegarde",
+  etatSauvegarde: () => requete("/api/etablissement/sauvegarde/etat"),
 };

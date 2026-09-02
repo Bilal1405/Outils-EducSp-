@@ -5,8 +5,17 @@ import {
   mettreAJourEtablissement,
 } from "../repositories/etablissementRepository";
 import { getQuotaStatus } from "../services/quotaService";
-import { listerAudit } from "../services/auditService";
-import { etablissementDe, exigerRole } from "../middleware/authentification";
+import {
+  dateDerniereSauvegarde,
+  exporterEtablissement,
+} from "../services/sauvegardeService";
+import {
+  adresseIp,
+  etablissementDe,
+  exigerRole,
+  libelle,
+} from "../middleware/authentification";
+import { journaliser, listerAudit } from "../services/auditService";
 
 export const etablissementsRouter = creerRouteur();
 
@@ -26,6 +35,57 @@ etablissementsRouter.get("/api/etablissement", async (req, res) => {
   }
   return res.json(etablissement);
 });
+
+/**
+ * Sauvegarde téléchargeable de tout l'établissement.
+ *
+ * Réservée au coordinateur : ce fichier contient l'intégralité des dossiers.
+ * C'est aussi pourquoi l'export est journalisé — savoir qui a extrait la
+ * totalité des données, et quand, fait partie de ce qu'un audit doit pouvoir
+ * répondre.
+ */
+etablissementsRouter.get(
+  "/api/etablissement/sauvegarde",
+  exigerRole("coordinateur"),
+  async (req, res) => {
+    const etablissementId = etablissementDe(req);
+    const sauvegarde = await exporterEtablissement(etablissementId);
+
+    await journaliser({
+      action: "sauvegarde_exportee",
+      utilisateurId: req.utilisateur!.id,
+      utilisateurLibelle: libelle(req.utilisateur!),
+      etablissementId,
+      cibleType: "etablissement",
+      cibleId: etablissementId,
+      details: {
+        beneficiaires: sauvegarde.beneficiaires.length,
+        bilans: sauvegarde.bilans.length,
+      },
+      adresseIp: adresseIp(req),
+    });
+
+    const jour = sauvegarde.exporte_le.slice(0, 10);
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="sauvegarde-bilans-${jour}.json"`
+    );
+    // Ce fichier ne doit rester ni dans un cache navigateur ni chez un
+    // intermédiaire : il porte tous les dossiers de la structure.
+    res.setHeader("Cache-Control", "no-store");
+    return res.end(JSON.stringify(sauvegarde, null, 2));
+  }
+);
+
+/** Date du dernier export, pour que l'interface puisse la rappeler. */
+etablissementsRouter.get(
+  "/api/etablissement/sauvegarde/etat",
+  exigerRole("coordinateur"),
+  async (req, res) => {
+    res.json({ derniere: await dateDerniereSauvegarde(etablissementDe(req)) });
+  }
+);
 
 etablissementsRouter.get("/api/etablissement/quota", async (req, res) => {
   const quota = await getQuotaStatus(etablissementDe(req));
