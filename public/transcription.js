@@ -274,15 +274,33 @@ export async function transcrire(blob, onEtape = () => {}) {
  *
  * Échec silencieux : ce n'est qu'une avance de phase, la dictée réessaiera.
  *
+ * @param {(etape: string, pourcentage?: number, brut?: object) => void} [onEtape]
+ *        le troisième argument est l'avancement tel que transformers.js le
+ *        publie, fichier par fichier. L'écran de préparation en a besoin pour
+ *        totaliser : un pourcentage par fichier ne dit rien de l'attente
+ *        restante quand il y en a cinq à télécharger.
  * @returns {Promise<boolean>} le modèle est-il prêt au terme de l'appel
  */
+let derniereErreurPreparation = null;
+
 export function prechargerModele(onEtape = () => {}) {
   return chargerTranscripteur((progression) => {
-    if (progression.status === "progress" && progression.total) {
-      const pct = Math.round((progression.loaded / progression.total) * 100);
-      onEtape("Téléchargement du modèle de dictée…", pct);
-    }
+    const pct =
+      progression.status === "progress" && progression.total
+        ? Math.round((progression.loaded / progression.total) * 100)
+        : undefined;
+    onEtape("Téléchargement du modèle de dictée…", pct, progression);
   })
     .then(() => true)
-    .catch(() => false);
+    .catch((err) => {
+      // La préparation explicite, elle, doit pouvoir dire ce qui a manqué :
+      // c'est un écran que l'éducateur regarde, pas une avance de phase muette.
+      derniereErreurPreparation = err;
+      return false;
+    });
+}
+
+/** Message de la dernière préparation échouée, déjà traduit en clair. */
+export function raisonEchecPreparation() {
+  return derniereErreurPreparation ? derniereErreurPreparation.message : null;
 }

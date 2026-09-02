@@ -17,13 +17,15 @@
        vague. Ce n'est pas du préchargement spéculatif — ces fichiers sont
        tous chargés au démarrage, sans exception.
 
-       `/transcription.js` n'y figure volontairement pas : il n'est demandé
-       qu'au moment d'une dictée. -->
+       `/transcription.js` n'y figure volontairement pas : l'écran de
+       préparation le demande une fois la session établie, et il n'y a aucune
+       raison de le servir à un visiteur qui n'est pas encore connecté. -->
   <link rel="modulepreload" href="/js/app.js" />
   <link rel="modulepreload" href="/js/api.js" />
   <link rel="modulepreload" href="/js/etat.js" />
   <link rel="modulepreload" href="/js/ui.js" />
   <link rel="modulepreload" href="/js/portail.js" />
+  <link rel="modulepreload" href="/js/preparation.js" />
   <link rel="modulepreload" href="/js/reglages.js" />
   <link rel="modulepreload" href="/js/beneficiaires.js" />
   <link rel="modulepreload" href="/js/redaction.js" />
@@ -148,6 +150,56 @@
       Cet outil traite des données de santé. Ne partagez pas votre mot de passe
       et verrouillez votre poste en le quittant.
     </p>
+  </div>
+</div>
+
+<!-- Préparation de l'outil : ce qui devait se télécharger en cours de saisie se
+     télécharge ici, une bonne fois. L'écran ne paraît que si l'attente dépasse
+     quelques dixièmes de seconde, et il ne retient jamais personne de force. -->
+<div id="preparation" class="preparation" role="dialog" aria-modal="true"
+     aria-labelledby="preparation-titre" hidden>
+  <div class="preparation-carte">
+    <div class="portail-marque">
+      <span class="marque-pastille"><svg class="ico"><use href="#ico-document"/></svg></span>
+      <span class="marque-nom">Bilans éducatifs</span>
+    </div>
+
+    <div id="preparation-encours">
+      <h1 id="preparation-titre">Préparation de l'outil</h1>
+      <p id="preparation-etape" class="preparation-etape">
+        Mise en place du moteur de transcription…
+      </p>
+
+      <div class="preparation-jauge" role="progressbar"
+           aria-labelledby="preparation-etape"
+           aria-valuemin="0" aria-valuemax="100">
+        <span id="preparation-barre" class="preparation-barre"></span>
+      </div>
+      <p id="preparation-taille" class="preparation-taille"></p>
+
+      <p id="preparation-premiere" class="preparation-note" hidden>
+        Premier lancement sur ce poste : le modèle de dictée est téléchargé une
+        seule fois, puis conservé par le navigateur. Les lancements suivants
+        seront immédiats.
+      </p>
+
+      <button type="button" id="preparation-passer" class="btn btn-lien preparation-passer">
+        Continuer sans attendre
+      </button>
+    </div>
+
+    <div id="preparation-echec" hidden>
+      <h1>La dictée n'a pas pu être préparée</h1>
+      <p id="preparation-echec-texte" class="preparation-etape"></p>
+      <p class="preparation-note">
+        Le reste de l'outil fonctionne : vous pouvez écrire au clavier. Pour
+        savoir ce qui manque sur ce poste, ouvrez
+        <a href="/diagnostic.html" target="_blank" rel="noopener">le diagnostic</a>.
+      </p>
+      <button type="button" id="preparation-continuer" class="btn btn-primaire">
+        Continuer sans la dictée
+      </button>
+    </div>
   </div>
 </div>
 

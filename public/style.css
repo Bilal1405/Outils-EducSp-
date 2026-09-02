@@ -1984,6 +1984,77 @@ dialog::backdrop {
    9. Portail, administration, pilotage
    ======================================================================== */
 
+/* Écran de préparation : posé par-dessus l'application déjà peinte, pour que
+   rien ne reste à charger une fois la saisie commencée. Il passe au-dessus du
+   portail (z-index 200) parce qu'il lui succède. */
+.preparation {
+  position: fixed;
+  inset: 0;
+  z-index: 210;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: var(--fond);
+  overflow-y: auto;
+}
+
+.preparation-carte {
+  width: min(30rem, 100%);
+  padding: 1.75rem;
+  background: var(--surface);
+  border: 1px solid var(--trait);
+  border-radius: var(--r-lg);
+  box-shadow: var(--ombre-2);
+}
+
+.preparation-carte h1 {
+  font-size: var(--t-xl);
+  margin-bottom: 0.5rem;
+}
+
+.preparation-etape {
+  color: var(--texte-doux);
+  margin-bottom: 1rem;
+}
+
+.preparation-jauge {
+  display: block;
+  height: 6px;
+  border-radius: var(--r-pilule);
+  background: var(--fond-creux);
+  overflow: hidden;
+}
+
+.preparation-barre {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--action);
+  transition: width 300ms ease;
+}
+
+.preparation-taille {
+  margin-top: 0.5rem;
+  min-height: 1.2em; /* réserve la ligne : le texte apparaît sans décaler le reste */
+  font-size: var(--t-sm);
+  color: var(--texte-tenu);
+  font-variant-numeric: tabular-nums;
+}
+
+.preparation-note {
+  margin-top: 1.1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--trait);
+  font-size: var(--t-xs);
+  color: var(--texte-tenu);
+  line-height: 1.5;
+}
+
+.preparation-passer {
+  margin-top: 0.9rem;
+}
+
 /* Écran de connexion : occupe toute la fenêtre et masque l'application, qui
    n'a de toute façon rien chargé à ce stade. */
 .portail {

@@ -72,6 +72,16 @@ figée. Mesuré dans Chromium à 100 ms de latence : 556 ms à froid, contre
 supplémentaire dans cette séquence : les ajouter à `/api/amorcage`, ou les
 différer jusqu'à l'écran qui en a besoin.
 
+Ce que la dictée doit télécharger — bibliothèque, moteur WebAssembly, poids du
+modèle — l'est par l'écran de préparation (`public/js/preparation.js`), juste
+après la connexion, pas au premier clic sur le micro. L'attente tombait sinon
+après avoir parlé, et se répétait à chaque onglet pour l'instanciation du
+graphe. L'écran ne paraît qu'au-delà de 400 ms — invisible dès le deuxième
+lancement — totalise les fichiers en un seul chiffre, et ne retient jamais
+personne : « Continuer sans attendre » poursuit en fond, un échec propose
+d'écrire au clavier. Ne pas le rendre bloquant : un poste sans accès à
+huggingface.co doit rester capable de rédiger.
+
 Les fichiers de `public/` passent par `src/middleware/statique.ts` : brotli ou
 gzip selon le navigateur, mémorisé en RAM, `ETag` sur le contenu servi. Tout est
 revalidé à chaque chargement sauf `/vendor/`, figé par sa version. 63 Kio

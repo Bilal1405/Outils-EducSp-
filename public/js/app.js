@@ -40,6 +40,7 @@ import { initBilan, ouvrirBilan } from "./bilan.js";
 import { initParcours, ouvrirParcours, parcoursModifie } from "./parcours.js";
 import { initPilotage, ouvrirJournal, ouvrirTableauDeBord } from "./pilotage.js";
 import { ouvrirPortail } from "./portail.js";
+import { preparerOutil } from "./preparation.js";
 
 // --- Vues et onglets ---
 
@@ -415,6 +416,12 @@ async function amorcer() {
   $("app").hidden = false;
   majBandeau();
   demarrer(donnees);
+
+  // Tout ce qui se chargeait au premier clic sur le micro se charge ici.
+  // L'application est déjà peinte dessous : quand la préparation est courte —
+  // le cas dès le deuxième lancement — aucun écran n'apparaît, et quand elle
+  // est longue, l'attente tombe avant la saisie plutôt qu'au milieu.
+  preparerOutil();
 }
 
 amorcer();
