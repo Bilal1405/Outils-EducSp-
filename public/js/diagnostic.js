@@ -263,6 +263,111 @@ controle("Dictée vocale", "Moteur d'inférence", async () => {
   );
 });
 
+// --- Version téléphone ------------------------------------------------------
+
+/**
+ * Ce dont la version installable a besoin, et que le reste du rapport ne dit
+ * pas.
+ *
+ * Elle repose sur des fichiers déposés à la construction du déploiement — le
+ * moteur PostgreSQL, le manifeste, les icônes. S'ils manquent, l'application
+ * s'ouvre normalement en mode serveur et échoue seulement quand on demande le
+ * mode local : la panne se présente alors comme un défaut de l'appareil, alors
+ * qu'elle est côté déploiement.
+ */
+
+/** Une ressource de notre origine est-elle réellement servie ? */
+async function servi(chemin) {
+  try {
+    const reponse = await fetch(chemin, { method: "GET", cache: "no-store" });
+    if (!reponse.ok) return { ok: false, detail: `HTTP ${reponse.status}` };
+    const octets = (await reponse.arrayBuffer()).byteLength;
+    return { ok: true, detail: `${(octets / 1024).toFixed(0)} Kio` };
+  } catch (err) {
+    return { ok: false, detail: err.message };
+  }
+}
+
+controle("Version téléphone", "Moteur de base de données", async () => {
+  const r = await servi("/vendor/pglite/index.js");
+  if (r.ok) return verdict(BON, `servi par l'application (${r.detail})`);
+  return verdict(
+    BLOQUANT,
+    `absent du serveur (${r.detail})`,
+    "La version pour praticien indépendant ne peut pas ouvrir sa base. " +
+      "Le déploiement n'a pas exécuté `npm run vendor:pglite` : si le service " +
+      "n'a pas été créé depuis le Blueprint, la commande de construction du " +
+      "tableau de bord fait foi et doit être corrigée là."
+  );
+});
+
+controle("Version téléphone", "Manifeste d'installation", async () => {
+  const r = await servi("/manifeste.webmanifest");
+  if (!r.ok) {
+    return verdict(
+      BLOQUANT,
+      `absent du serveur (${r.detail})`,
+      "Sans lui, Android ne proposera jamais d'installer l'application. " +
+        "Le déploiement date d'avant la version téléphone."
+    );
+  }
+  return verdict(BON, `servi (${r.detail})`);
+});
+
+controle("Version téléphone", "Icônes d'application", async () => {
+  const r = await servi("/icones/icone-192.png");
+  return r.ok
+    ? verdict(BON, `servies (${r.detail})`)
+    : verdict(
+        BLOQUANT,
+        `absentes (${r.detail})`,
+        "Android refuse d'installer une application sans icône."
+      );
+});
+
+controle("Version téléphone", "Fonctionnement hors réseau", async () => {
+  if (!("serviceWorker" in navigator)) {
+    return verdict(BLOQUANT, "non pris en charge par ce navigateur");
+  }
+  const enregistrements = await navigator.serviceWorker.getRegistrations();
+  if (enregistrements.length === 0) {
+    return verdict(
+      LIMITE,
+      "pas encore installé sur cet appareil",
+      "Il s'installe à la première ouverture de l'application. Hors réseau, " +
+        "l'application ne s'ouvrira pas tant que ce n'est pas fait."
+    );
+  }
+  const actif = enregistrements.some((e) => e.active);
+  return actif
+    ? verdict(BON, "l'application s'ouvrira sans réseau")
+    : verdict(LIMITE, "en cours d'installation");
+});
+
+controle("Version téléphone", "Protection des dossiers", async () => {
+  if (!navigator.storage || !navigator.storage.persisted) {
+    return verdict(INCONNU, "le navigateur ne le dit pas");
+  }
+  const protege = await navigator.storage.persisted();
+  if (protege) return verdict(BON, "le navigateur n'effacera pas la base");
+  return verdict(
+    LIMITE,
+    "stockage non persistant",
+    "Un appareil à court d'espace peut effacer les dossiers sans prévenir. " +
+      "Installer l'application sur l'écran d'accueil l'accorde d'office."
+  );
+});
+
+controle("Version téléphone", "Mode d'ouverture", () => {
+  const installee =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true;
+  return verdict(
+    BON,
+    installee ? "application installée" : "ouvert dans le navigateur"
+  );
+});
+
 // --- Serveur ----------------------------------------------------------------
 
 controle("Serveur", "Réponse et base de données", async () => {
