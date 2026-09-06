@@ -29,7 +29,7 @@ describe("écran de préparation", () => {
   it("est lancé au démarrage, après la connexion", () => {
     const app = lire("public", "js", "app.js");
     expect(app).toContain('import { preparerOutil } from "./preparation.js"');
-    expect(app).toContain("preparerOutil()");
+    expect(app).toMatch(/preparerOutil\(/);
   });
 
   it("laisse toujours une sortie", () => {

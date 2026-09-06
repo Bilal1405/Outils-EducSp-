@@ -2405,6 +2405,119 @@ dialog::backdrop {
   .controle { break-inside: avoid; }
 }
 
+/* ==========================================================================
+   Version installée sur téléphone
+   ========================================================================== */
+
+/* Praticien seul : ce qui ne veut rien dire chez lui n'a pas à s'afficher.
+   L'activité et le profil sont créés à la mise en service ; le quota compte
+   des bilans pour les facturer à un établissement. */
+[data-mode="local"] [data-titre-etablissement],
+[data-mode="local"] .etape[data-etape="etablissement"],
+[data-mode="local"] .etape[data-etape="educateur"],
+[data-mode="local"] .accueil-intro {
+  display: none;
+}
+
+/* Masqué par défaut en CSS et non par l'attribut `hidden` : celui-ci est posé
+   avec `!important` plus haut, et aucune règle de mode ne pourrait le lever. */
+[data-titre-local] {
+  display: none;
+}
+
+[data-mode="local"] [data-titre-local] {
+  display: block;
+}
+
+/* Une seule étape restante : la numéroter « 3 » serait absurde. */
+[data-mode="local"] .etapes {
+  counter-reset: none;
+}
+
+[data-mode="local"] .etape[data-etape="beneficiaire"] .etape-puce {
+  display: none;
+}
+
+/* Invitation à installer, posée au-dessus du contenu et au-dessus de la barre
+   de gestes d'Android. */
+.installer {
+  position: fixed;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  z-index: 190;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--r-lg);
+  box-shadow: var(--ombre-2);
+}
+
+.installer-texte {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 12rem;
+  flex: 1 1 12rem;
+}
+
+.installer-texte span {
+  font-size: var(--t-xs);
+  color: var(--texte-tenu);
+  line-height: 1.4;
+}
+
+.installer-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* ---- Écrans tactiles -----------------------------------------------------
+   Mesuré en 393 px : rien ne débordait, mais plusieurs commandes tombaient à
+   28–32 px de haut. Un doigt n'est pas un curseur ; en dessous de 44 px on
+   vise à côté, et sur un bilan on clique alors sur autre chose que ce qu'on
+   croit. Les tailles ne changent qu'au toucher : sur un poste à la souris,
+   agrandir ces boutons ne ferait que disperser l'interface. */
+@media (pointer: coarse) {
+  .btn,
+  .btn-icone,
+  .puce,
+  .onglet,
+  .btn-lien,
+  .marque {
+    min-height: 44px;
+  }
+
+  .btn-icone {
+    min-width: 44px;
+  }
+
+  .puce {
+    padding-block: 0.6rem;
+  }
+
+  /* Le pied du parcours guidé longe la barre de gestes : sans cette réserve,
+     « Étape suivante » se trouve sous le trait de navigation d'Android. */
+  .parcours-pied,
+  .saisie-barre {
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* iOS et Android zooment la page quand un champ de moins de 16 px prend le
+     focus, et ne dézooment jamais complètement ensuite. */
+  input,
+  select,
+  textarea {
+    font-size: max(16px, var(--t-base));
+  }
+}
+
 /* Comparaison des précisions de dictée (page d'évaluation, non reliée à
    l'interface : on y va par son adresse, comme au diagnostic). */
 .comparaison-actions {

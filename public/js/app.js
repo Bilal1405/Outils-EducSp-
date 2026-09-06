@@ -4,7 +4,7 @@
  * Les modules de vue ne se connaissent pas ; ils publient des événements que ce
  * fichier traduit en changements d'écran.
  */
-import { api } from "./api.js";
+import { api, modeLocal } from "./api.js";
 import { etat, sur } from "./etat.js";
 import {
   $,
@@ -41,6 +41,7 @@ import { initParcours, ouvrirParcours, parcoursModifie } from "./parcours.js";
 import { initPilotage, ouvrirJournal, ouvrirTableauDeBord } from "./pilotage.js";
 import { ouvrirPortail } from "./portail.js";
 import { preparerOutil } from "./preparation.js";
+import { initInstallation } from "./pwa.js";
 
 // --- Vues et onglets ---
 
@@ -371,6 +372,14 @@ function sessionProbable() {
  * c'est le serveur qui refuse, et c'est la seule garantie qui vaille.
  */
 async function amorcer() {
+  // Marqué sur la racine plutôt que passé de module en module : la feuille de
+  // style en a besoin pour retirer ce qui ne veut rien dire chez un praticien
+  // seul — le vocabulaire d'établissement, les étapes de mise en route déjà
+  // faites, la jauge de quota.
+  if (modeLocal()) {
+    document.documentElement.dataset.mode = "local";
+  }
+
   let donnees = null;
   if (sessionProbable()) {
     try {
@@ -417,11 +426,18 @@ async function amorcer() {
   majBandeau();
   demarrer(donnees);
 
+  void initInstallation({ local: modeLocal() });
+
   // Tout ce qui se chargeait au premier clic sur le micro se charge ici.
   // L'application est déjà peinte dessous : quand la préparation est courte —
   // le cas dès le deuxième lancement — aucun écran n'apparaît, et quand elle
   // est longue, l'attente tombe avant la saisie plutôt qu'au milieu.
-  preparerOutil();
+  //
+  // Sur téléphone, en revanche, on ne déclenche pas cent quarante mégaoctets
+  // sans qu'on les ait demandés : la connexion est souvent mesurée, et un
+  // praticien qui ne dicte pas n'a aucune raison de les payer. Le modèle est
+  // alors chargé au premier usage du micro, qui l'annonce.
+  preparerOutil({ seulementSiDejaCharge: modeLocal() });
 }
 
 amorcer();

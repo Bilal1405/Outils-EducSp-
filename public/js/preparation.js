@@ -127,7 +127,7 @@ function signalerEchec(raison) {
  * Ne rejette jamais : une préparation ratée est une gêne, pas une panne, et
  * l'outil doit rester utilisable au clavier dans tous les cas.
  */
-export async function preparerOutil() {
+export async function preparerOutil({ seulementSiDejaCharge = false } = {}) {
   let module;
   try {
     module = await import("/transcription.js");
@@ -141,6 +141,12 @@ export async function preparerOutil() {
   if (module.modelePret()) return;
 
   const premiereFois = !module.modeleDejaCharge();
+
+  // Sur un téléphone, engager cent quarante mégaoctets sans qu'on les ait
+  // demandés serait présumer d'une connexion illimitée. Quand le modèle est
+  // déjà là, en revanche, le remettre en mémoire ne coûte aucun réseau et fait
+  // gagner les quelques secondes d'instanciation du graphe.
+  if (seulementSiDejaCharge && premiereFois) return;
   const totaliser = compteurDeTelechargement();
   let abandonne = false;
 

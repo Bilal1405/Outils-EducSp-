@@ -12,10 +12,12 @@ services:
     # contente d'en vérifier l'empreinte, hors ligne. S'il échoue, c'est que le
     # dépôt ne contient pas ce qu'il annonce — et il vaut mieux le savoir à la
     # construction qu'au premier clic sur le micro d'un éducateur.
-    # `--omit=optional` écarte la base embarquée : elle sert aux postes sans
-    # droits d'installation, pas à un déploiement qui a déjà son serveur
-    # PostgreSQL, et pèse une trentaine de mégaoctets.
-    buildCommand: npm ci --include=dev --omit=optional && npm run vendor:asr && npm run build
+    # PGlite n'est plus écarté : le service ne s'en sert pas — il a son serveur
+    # PostgreSQL — mais `vendor:pglite` en dépose le moteur WebAssembly dans
+    # public/vendor/, d'où les téléphones le téléchargent pour leur base
+    # locale. Sans lui, la version pour praticien indépendant ne peut pas
+    # s'installer. 16 Mo bruts, 3,8 Mo servis compressés.
+    buildCommand: npm ci --include=dev && npm run vendor:asr && npm run vendor:pglite && npm run build
     # Un seul point d'entrée, depuis le JavaScript compilé — tsx n'a pas à être
     # présent au démarrage. Il applique les migrations puis démarre le serveur.
     #

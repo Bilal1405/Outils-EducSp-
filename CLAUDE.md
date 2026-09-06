@@ -86,6 +86,20 @@ ne jamais les modifier à la main, `npm run generer:migrations` et
 répond 501 avec sa raison, jamais en silence : reformulation, génération de
 bilan, export .docx, sauvegarde.
 
+Elle s'installe sur l'écran d'accueil sans boutique ni compte développeur :
+manifeste (`start_url: /?local=1`), service worker (`public/sw.js`), icônes
+dessinées par `npm run generer:icones` — encodeur PNG écrit à la main, aucune
+dépendance de rendu. L'installation n'est pas cosmétique : elle obtient le
+stockage persistant, sans lequel un navigateur à court d'espace peut effacer
+des dossiers de bénéficiaires. Le service worker ne met **jamais** `/api/` en
+cache. `test/pwa.test.ts` refuse une liste de préchargement qui référencerait
+un fichier absent — l'erreur ne se verrait sinon qu'en zone blanche.
+`INSTALLATION-MOBILE.md` décrit la marche à suivre.
+
+Sur téléphone, la préparation de la dictée ne se déclenche pas d'elle-même :
+cent quarante mégaoctets sur une connexion mesurée ne s'engagent pas sans
+qu'on les demande. Le modèle est chargé au premier usage du micro.
+
 Ce que la dictée doit télécharger — bibliothèque, moteur WebAssembly, poids du
 modèle — l'est par l'écran de préparation (`public/js/preparation.js`), juste
 après la connexion, pas au premier clic sur le micro. L'attente tombait sinon

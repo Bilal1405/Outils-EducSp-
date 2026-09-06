@@ -10,6 +10,17 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23c26b3c'/%3E%3Cpath d='M9 8h11l4 4v12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z' fill='%23fffdfa'/%3E%3Cpath d='M11 16h10M11 20h7' stroke='%23c26b3c' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="/style.css" />
 
+  <!-- Installation sur l'écran d'accueil, sans boutique ni compte
+       développeur : Android sait le faire depuis le navigateur. Le manifeste
+       démarre sur `?local=1`, si bien qu'une application installée ouvre
+       toujours la base de l'appareil. -->
+  <link rel="manifest" href="/manifeste.webmanifest" />
+  <meta name="theme-color" content="#c26b3c" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Bilans" />
+  <link rel="apple-touch-icon" href="/icones/icone-192.png" />
+
   <!-- Sans ces lignes, le navigateur ne découvre les modules qu'en analysant
        `app.js`, puis leurs propres imports en les analysant à leur tour :
        trois vagues successives, donc trois allers-retours, avant la première
@@ -26,6 +37,7 @@
   <link rel="modulepreload" href="/js/ui.js" />
   <link rel="modulepreload" href="/js/portail.js" />
   <link rel="modulepreload" href="/js/preparation.js" />
+  <link rel="modulepreload" href="/js/pwa.js" />
   <link rel="modulepreload" href="/js/reglages.js" />
   <link rel="modulepreload" href="/js/beneficiaires.js" />
   <link rel="modulepreload" href="/js/redaction.js" />
@@ -153,6 +165,21 @@
   </div>
 </div>
 
+<!-- Invitation à installer l'application sur l'écran d'accueil. Elle ne paraît
+     qu'en mode local, quand Android la propose, et ne revient pas si elle est
+     écartée : l'installation apporte le stockage persistant et le
+     fonctionnement hors réseau, elle ne s'impose pas pour autant. -->
+<div id="installer" class="installer" role="region" aria-label="Installer l'application" hidden>
+  <div class="installer-texte">
+    <strong>Installer sur cet appareil</strong>
+    <span>Ouverture sans réseau, et vos dossiers protégés d'un effacement automatique.</span>
+  </div>
+  <div class="installer-actions">
+    <button type="button" id="installer-plus-tard" class="btn btn-lien">Plus tard</button>
+    <button type="button" id="installer-valider" class="btn btn-primaire">Installer</button>
+  </div>
+</div>
+
 <!-- Préparation de l'outil : ce qui devait se télécharger en cours de saisie se
      télécharge ici, une bonne fois. L'écran ne paraît que si l'attente dépasse
      quelques dixièmes de seconde, et il ne retient jamais personne de force. -->
@@ -258,7 +285,11 @@
     <section id="vue-accueil" class="vue">
       <div id="accueil-demarrage" class="accueil">
         <p class="accueil-surtitre">Mise en route</p>
-        <h1>Trois choses à définir avant le premier bilan</h1>
+        <h1 data-titre-etablissement>Trois choses à définir avant le premier bilan</h1>
+        <!-- Chez un praticien seul, l'activité et le profil sont créés à la
+             mise en service : il ne reste qu'un prérequis, et l'annoncer au
+             pluriel donnerait du travail imaginaire. -->
+        <h1 data-titre-local>Ajoutez votre premier bénéficiaire</h1>
         <p class="accueil-intro">
           Une fois ces éléments en place, ils ne vous seront plus redemandés.
         </p>
