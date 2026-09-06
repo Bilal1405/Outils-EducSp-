@@ -70,8 +70,11 @@ export function planifierPreparation() {
 
   const lancer = () => {
     import("/transcription.js")
-      .then((module) => {
-        if (module.modeleDejaCharge()) {
+      .then(async (module) => {
+        // La question est posée au cache du navigateur, pas à un drapeau : un
+        // cache vidé doit se traduire par « pas encore là », sinon on relance
+        // le téléchargement complet sans que personne l'ait demandé.
+        if (await module.modeleDejaCharge()) {
           preparer();
         }
       })

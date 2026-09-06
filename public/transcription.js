@@ -63,27 +63,53 @@ export const OPTIONS_TRANSCRIPTION = {
 const TAUX_ECHANTILLONNAGE = 16000;
 
 /**
- * Mémorise qu'un chargement a déjà abouti sur ce poste. Sert uniquement à
- * décider si l'application peut préparer la dictée d'elle-même au démarrage :
- * si le modèle est déjà dans le cache du navigateur, l'y remettre ne coûte
- * aucun réseau. Aucune donnée de bénéficiaire n'est stockée.
+ * Nom du cache dans lequel transformers.js range les poids du modèle
+ * (`env.cacheKey`). Le lire nous-mêmes est le seul moyen de savoir si un
+ * chargement coûtera du réseau ou non.
  */
-const CLE_DEJA_CHARGE = "dicteeModeleDejaCharge";
+const CACHE_MODELES = "transformers-cache";
 
-export function modeleDejaCharge() {
+/**
+ * Le modèle est-il réellement présent sur cet appareil ?
+ *
+ * La question se posait auparavant à un drapeau dans `localStorage`, posé après
+ * le premier chargement réussi. Ce drapeau ment dans les deux sens, et le
+ * second est coûteux : le cache du navigateur peut être vidé — manque de place,
+ * nettoyage, données du site effacées — sans que le drapeau bouge. On croyait
+ * alors le modèle sur place, on lançait la préparation d'office, et cent
+ * quarante mégaoctets repartaient sur le réseau à chaque ouverture.
+ *
+ * On interroge donc le cache lui-même, qui est la vérité.
+ *
+ * @returns {Promise<{present: boolean, fichiers: number, octets: number}>}
+ */
+export async function modeleEnCache() {
+  const vide = { present: false, fichiers: 0, octets: 0 };
+  if (typeof caches === "undefined") return vide;
+
   try {
-    return localStorage.getItem(CLE_DEJA_CHARGE) === "1";
+    const cache = await caches.open(CACHE_MODELES);
+    const entrees = (await cache.keys()).filter((r) => r.url.includes(MODELE));
+    if (entrees.length === 0) return vide;
+
+    // Les poids seuls comptent : un `config.json` en cache ne dispense de rien.
+    let octets = 0;
+    let poids = 0;
+    for (const requete of entrees) {
+      const reponse = await cache.match(requete);
+      const taille = Number(reponse?.headers.get("content-length") ?? 0);
+      octets += taille;
+      if (/\.onnx(_data)?$/.test(new URL(requete.url).pathname)) poids++;
+    }
+    return { present: poids > 0, fichiers: entrees.length, octets };
   } catch {
-    return false;
+    return vide;
   }
 }
 
-function memoriserChargement() {
-  try {
-    localStorage.setItem(CLE_DEJA_CHARGE, "1");
-  } catch {
-    /* Stockage refusé : on retombe simplement sur la préparation à la demande. */
-  }
+/** Version brève, pour les appelants qui n'ont besoin que du oui ou non. */
+export async function modeleDejaCharge() {
+  return (await modeleEnCache()).present;
 }
 
 let transcripteurPromise = null;
@@ -218,7 +244,6 @@ function chargerTranscripteur(onProgression) {
         });
         transcripteurPret = true;
         peripheriqueUtilise = device;
-        memoriserChargement();
         return transcripteur;
       } catch (err) {
         derniereErreur = err;

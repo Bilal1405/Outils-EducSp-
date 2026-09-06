@@ -263,6 +263,38 @@ controle("Dictée vocale", "Moteur d'inférence", async () => {
   );
 });
 
+/**
+ * Le modèle est-il déjà sur l'appareil ?
+ *
+ * Répond à un signalement précis : « le modèle se télécharge à chaque
+ * ouverture ». Rien dans le reste du rapport ne permettait de trancher entre
+ * un vrai retéléchargement et un libellé trompeur.
+ */
+controle("Dictée vocale", "Modèle déjà sur l'appareil", async () => {
+  try {
+    const { modeleEnCache } = await import("/transcription.js");
+    const { present, fichiers, octets } = await modeleEnCache();
+    if (present) {
+      return verdict(
+        BON,
+        `${fichiers} fichier(s), ${(octets / 1048576).toFixed(0)} Mo — ` +
+          "la dictée ne retéléchargera rien"
+      );
+    }
+    return verdict(
+      LIMITE,
+      fichiers > 0
+        ? `${fichiers} fichier(s) en cache, mais pas les poids du modèle`
+        : "pas encore téléchargé",
+      "Le premier usage du micro le téléchargera. S'il redisparaît à chaque " +
+        "ouverture, c'est que le navigateur vide son cache : installer " +
+        "l'application sur l'écran d'accueil l'en empêche."
+    );
+  } catch (err) {
+    return verdict(INCONNU, `vérification impossible : ${err.message}`);
+  }
+});
+
 // --- Version téléphone ------------------------------------------------------
 
 /**

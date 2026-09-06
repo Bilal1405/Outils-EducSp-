@@ -140,7 +140,10 @@ export async function preparerOutil({ seulementSiDejaCharge = false } = {}) {
 
   if (module.modelePret()) return;
 
-  const premiereFois = !module.modeleDejaCharge();
+  // La question est posée au cache du navigateur, pas à un drapeau : c'est lui
+  // qui décide si la préparation coûtera du réseau, et lui seul le sait.
+  const enCache = await module.modeleEnCache();
+  const premiereFois = !enCache.present;
 
   // Sur un téléphone, engager cent quarante mégaoctets sans qu'on les ait
   // demandés serait présumer d'une connexion illimitée. Quand le modèle est
@@ -170,10 +173,17 @@ export async function preparerOutil({ seulementSiDejaCharge = false } = {}) {
     // Le libellé suit ce qui se passe réellement. Une fois les octets reçus, il
     // reste l'instanciation du graphe ONNX — quelques secondes pendant
     // lesquelles rien ne progresse, et où « téléchargement » serait faux.
-    $("preparation-etape").textContent =
+    // Dire « téléchargement » alors que les octets sortent du cache de
+    // l'appareil ferait croire à un rechargement complet à chaque ouverture —
+    // et donnerait à l'application l'air de gaspiller le forfait de son
+    // utilisateur, ce qu'elle ne fait pas.
+    const enCours =
       cumul && cumul.charge < cumul.total
-        ? "Téléchargement du modèle de transcription…"
+        ? premiereFois
+          ? "Téléchargement du modèle de transcription…"
+          : "Reprise du modèle déjà présent sur l'appareil…"
         : "Mise en place du moteur de transcription…";
+    $("preparation-etape").textContent = enCours;
   });
 
   clearTimeout(minuterie);
