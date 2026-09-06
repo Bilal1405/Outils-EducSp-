@@ -72,6 +72,20 @@ figée. Mesuré dans Chromium à 100 ms de latence : 556 ms à froid, contre
 supplémentaire dans cette séquence : les ajouter à `/api/amorcage`, ou les
 différer jusqu'à l'écran qui en a besoin.
 
+Version pour praticien indépendant (`?local=1`) : pas de serveur, donc pas
+d'hébergeur — ni HDS à obtenir, ni base supprimée au bout de 30 jours, ni
+donnée de santé qui sorte de l'appareil. `public/js/local/` porte la base
+(PGlite dans le navigateur, `public/js/local/base.js`) et un routeur qui rejoue
+les routes du serveur (`routeur.js`). L'interface n'a pas changé d'une ligne :
+elle ne parle qu'à `public/js/api.js`, qui dispatche selon le mode, lu dans
+l'adresse et non dans un réglage mémorisé. Trois fichiers sont **générés** —
+`migrations.js`, `schema.js` (et `contenuVierge.js` en transcrit le calcul) :
+ne jamais les modifier à la main, `npm run generer:migrations` et
+`generer:schema` les produisent, `test/migrationsNavigateur.test.ts` et
+`test/routeurLocal.test.ts` refusent une copie périmée. Ce qui manque encore
+répond 501 avec sa raison, jamais en silence : reformulation, génération de
+bilan, export .docx, sauvegarde.
+
 Ce que la dictée doit télécharger — bibliothèque, moteur WebAssembly, poids du
 modèle — l'est par l'écran de préparation (`public/js/preparation.js`), juste
 après la connexion, pas au premier clic sur le micro. L'attente tombait sinon

@@ -37,7 +37,42 @@ export class ErreurApi extends Error {
   }
 }
 
+/**
+ * Deux implémentations derrière la même surface.
+ *
+ * En mode local — version pour praticien indépendant — il n'y a pas de
+ * serveur : les dossiers vivent dans la base du navigateur, et un routeur
+ * local rejoue les mêmes routes. C'est ce qui permet à toute l'interface de
+ * fonctionner sans une ligne de changement : elle ne parle qu'à ce fichier.
+ *
+ * Le mode se lit dans l'adresse, et non dans un réglage mémorisé : le
+ * manifeste de l'application installée pointe sur `?local=1`, si bien qu'un
+ * praticien démarre toujours en local et qu'une même instance peut servir les
+ * deux publics sans se tromper de base.
+ */
+const MODE_LOCAL = new URLSearchParams(location.search).has("local");
+
+export function modeLocal() {
+  return MODE_LOCAL;
+}
+
+async function requeteLocale(url, options) {
+  const { traiter } = await import("./local/routeur.js");
+  const methode = (options && options.method) || "GET";
+  const corps = options && options.body ? JSON.parse(options.body) : undefined;
+
+  const { statut, donnees } = await traiter(methode, url, corps);
+  if (statut >= 400) {
+    throw new ErreurApi(messageErreur(donnees, statut), statut, donnees);
+  }
+  return donnees;
+}
+
 async function requete(url, options) {
+  if (MODE_LOCAL) {
+    return requeteLocale(url, options);
+  }
+
   let reponse;
   try {
     reponse = await fetch(url, options);

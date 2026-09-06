@@ -18,7 +18,8 @@
     "migrate:prod": "node dist/scripts/migrate.js",
     "start:prod": "node dist/scripts/demarrer.js",
     "vendor:pglite": "node scripts/vendor-pglite.mjs",
-    "generer:migrations": "node scripts/generer-migrations.mjs"
+    "generer:migrations": "node scripts/generer-migrations.mjs",
+    "generer:schema": "tsx scripts/generer-schema.ts"
   },
   "dependencies": {
     "docx": "^9.7.1",
