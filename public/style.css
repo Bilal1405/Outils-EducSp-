@@ -2034,6 +2034,26 @@ dialog::backdrop {
   transition: width 300ms ease;
 }
 
+/* Avancement sans pourcentage : l'ouverture de la base ne se mesure pas en
+   octets, mais elle ne doit pas paraître figée pour autant. */
+.preparation-barre-indeterminee {
+  width: 40%;
+  animation: barre-va-et-vient 1.6s ease-in-out infinite;
+}
+
+@keyframes barre-va-et-vient {
+  0% { margin-left: -40%; }
+  100% { margin-left: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preparation-barre-indeterminee {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+}
+
 .preparation-taille {
   margin-top: 0.5rem;
   min-height: 1.2em; /* réserve la ligne : le texte apparaît sans décaler le reste */

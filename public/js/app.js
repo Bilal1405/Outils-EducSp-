@@ -371,6 +371,50 @@ function sessionProbable() {
  * d'être authentifié. Ce n'est pas le navigateur qui décide de s'en priver —
  * c'est le serveur qui refuse, et c'est la seule garantie qui vaille.
  */
+/**
+ * Ouvre la base de l'appareil, à l'écran.
+ *
+ * La première ouverture télécharge PostgreSQL puis applique les treize
+ * migrations : une trentaine de secondes sur un téléphone. Sans rien afficher,
+ * la page reste blanche pendant tout ce temps — et une application qui montre
+ * une page blanche est une application cassée, quoi qu'elle fasse par-dessous.
+ * C'est la première chose que voit un praticien qui installe l'outil.
+ *
+ * L'écran s'efface dès que la base répond, et ne reparaît plus : les
+ * lancements suivants sont immédiats.
+ */
+async function ouvrirBaseLocale() {
+  const ecran = $("ouverture");
+  const { ouvrirBase } = await import("./local/base.js");
+
+  // Première fois sur cet appareil ? Le savoir change le message : trente
+  // secondes annoncées se supportent, trente secondes inexpliquées non.
+  let premiere = true;
+  try {
+    const bases = await indexedDB.databases?.();
+    premiere = !bases || !bases.some((b) => (b.name ?? "").includes("outils-educsp"));
+  } catch {
+    /* Le navigateur ne le dit pas : on reste sur le message le plus prudent. */
+  }
+
+  $("ouverture-premiere").hidden = !premiere;
+  ecran.hidden = false;
+
+  try {
+    await ouvrirBase((etape) => {
+      $("ouverture-etape").textContent = etape;
+    });
+    ecran.hidden = true;
+    return true;
+  } catch (err) {
+    $("ouverture-encours").hidden = true;
+    $("ouverture-echec").hidden = false;
+    $("ouverture-echec-texte").textContent = err.message;
+    $("ouverture-reessayer").addEventListener("click", () => location.reload());
+    return false;
+  }
+}
+
 async function amorcer() {
   // Marqué sur la racine plutôt que passé de module en module : la feuille de
   // style en a besoin pour retirer ce qui ne veut rien dire chez un praticien
@@ -378,6 +422,9 @@ async function amorcer() {
   // faites, la jauge de quota.
   if (modeLocal()) {
     document.documentElement.dataset.mode = "local";
+    // Avant tout le reste : rien de l'interface ne peut s'afficher sans base,
+    // et c'est la seule attente longue de l'application.
+    if (!(await ouvrirBaseLocale())) return;
   }
 
   let donnees = null;

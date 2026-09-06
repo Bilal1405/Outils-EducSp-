@@ -165,6 +165,44 @@
   </div>
 </div>
 
+<!-- Première ouverture de la base locale. Sans cet écran, la page reste blanche
+     pendant que PostgreSQL se télécharge et s'installe sur l'appareil — une
+     minute sur un téléphone, sans rien à regarder, ce qui se lit comme une
+     application cassée. -->
+<div id="ouverture" class="preparation" role="status" aria-live="polite" hidden>
+  <div class="preparation-carte">
+    <div class="portail-marque">
+      <span class="marque-pastille"><svg class="ico"><use href="#ico-document"/></svg></span>
+      <span class="marque-nom">Bilans éducatifs</span>
+    </div>
+
+    <div id="ouverture-encours">
+      <h1>Préparation de l'application</h1>
+      <p id="ouverture-etape" class="preparation-etape">Ouverture de la base…</p>
+      <div class="preparation-jauge" role="progressbar" aria-labelledby="ouverture-etape">
+        <span id="ouverture-barre" class="preparation-barre preparation-barre-indeterminee"></span>
+      </div>
+      <p id="ouverture-premiere" class="preparation-note" hidden>
+        Première ouverture sur cet appareil : la base de données s'installe.
+        Comptez une trentaine de secondes. Les lancements suivants seront
+        immédiats, et fonctionneront sans réseau.
+      </p>
+    </div>
+
+    <div id="ouverture-echec" hidden>
+      <h1>La base de données n'a pas pu s'ouvrir</h1>
+      <p id="ouverture-echec-texte" class="preparation-etape"></p>
+      <p class="preparation-note">
+        Pour savoir ce qui manque sur cet appareil, ouvrez
+        <a href="/diagnostic.html">le diagnostic</a> et transmettez le rapport.
+      </p>
+      <button type="button" id="ouverture-reessayer" class="btn btn-primaire">
+        Réessayer
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- Invitation à installer l'application sur l'écran d'accueil. Elle ne paraît
      qu'en mode local, quand Android la propose, et ne revient pas si elle est
      écartée : l'installation apporte le stockage persistant et le
