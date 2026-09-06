@@ -23,25 +23,37 @@ import { schemaRouter } from "./routes/schema";
 import { utilisateursRouter } from "./routes/utilisateurs";
 
 /**
- * Version publiée, lue une fois au démarrage.
+ * Version publiée. Sans elle, la première question de tout incident — « quelle
+ * version tourne sur ce poste ? » — n'a pas de réponse, et l'on répare parfois
+ * ce qui l'est déjà.
  *
- * Sans elle, la première question de tout incident — « quelle version tourne
- * sur ce poste ? » — n'a pas de réponse, et l'on répare parfois ce qui l'est
- * déjà.
+ * Relue à chaque appel, et non mémorisée au démarrage.
+ *
+ * Le fichier est minuscule et la question est trop importante pour reposer sur
+ * une hypothèse : une version mémorisée mentirait dès qu'un déploiement
+ * remplace les fichiers sous un processus encore vivant. Or c'est précisément
+ * la réponse dont dépend tout le mécanisme de mise à jour.
  */
-let version: string | null = null;
 function versionApplication(): string {
-  if (version === null) {
-    try {
-      const paquet = JSON.parse(
-        readFileSync(path.join(racineProjet(__dirname), "package.json"), "utf8")
-      );
-      version = String(paquet.version ?? "inconnue");
-    } catch {
-      version = "inconnue";
-    }
+  // Le tampon de construction d'abord : c'est lui qui distingue deux
+  // déploiements. Le numéro de `package.json` ne change jamais et ne permettait
+  // donc de répondre à rien.
+  try {
+    const tampon = JSON.parse(
+      readFileSync(path.join(racineProjet(__dirname), "public", "version.json"), "utf8")
+    );
+    return String(tampon.id);
+  } catch {
+    /* Interface servie sans tampon : on se rabat sur le paquet. */
   }
-  return version;
+  try {
+    const paquet = JSON.parse(
+      readFileSync(path.join(racineProjet(__dirname), "package.json"), "utf8")
+    );
+    return `${paquet.version ?? "inconnue"} (sans tampon de construction)`;
+  } catch {
+    return "inconnue";
+  }
 }
 
 export function createApp() {
@@ -129,6 +141,25 @@ export function createApp() {
         details: err instanceof Error ? err.message : String(err),
       });
     }
+  });
+
+  /**
+   * Version déployée, jamais mise en cache.
+   *
+   * C'est le seul point de comparaison fiable : l'application embarque la
+   * version de son propre code, mise en cache avec lui ; celle-ci vient
+   * toujours du serveur. La différence entre les deux dit qu'un appareil est
+   * en retard — ce que rien ne permettait de savoir, au point de corriger
+   * plusieurs fois des défauts déjà corrigés.
+   *
+   * Placée avant le service des fichiers statiques pour maîtriser ses
+   * en-têtes : servie comme un fichier ordinaire, elle serait revalidée, donc
+   * susceptible d'être servie depuis un cache — et ne répondrait plus à la
+   * question qu'on lui pose.
+   */
+  app.get("/version.json", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ id: versionApplication() });
   });
 
   // Les fichiers texte passent par le middleware de compression ; tout le

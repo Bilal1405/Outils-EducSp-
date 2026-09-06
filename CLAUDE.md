@@ -86,6 +86,23 @@ ne jamais les modifier à la main, `npm run generer:migrations` et
 répond 501 avec sa raison, jamais en silence : reformulation, génération de
 bilan, export .docx, sauvegarde.
 
+Mise à jour : c'est ce dont tout le reste dépend, et cela s'est payé. Chaque
+construction produit une identité (`npm run generer:version` → `version.json`
+et `public/js/version.js`), dont **`sw.js` est dérivé** (`generer:sw`, qui lit
+`version.json` plutôt que de recalculer — deux horodatages à une seconde
+d'écart et l'appareil se croit en retard sur lui-même). Le nom du cache la
+porte : plus de constante à incrémenter, plus de déploiement invisible. La
+liste de préchargement est relevée sur le disque, jamais écrite à la main.
+`/version.json` est servi `no-store` **et** laissé passer par le service
+worker : mis en cache, il affirmerait que tout va bien quel que soit le
+déploiement. Deux détections indépendantes — l'événement du service worker et
+la comparaison des versions — parce qu'elles échouent différemment. Un clic
+suffit : `appliquerLaMiseAJour()` attend la relève du service worker avant de
+recharger, sans quoi le rechargement est encore servi par l'ancien et il en
+faut un second. Le recours (`repartirDeZero`, dans `/diagnostic.html`) ne
+touche **jamais** IndexedDB : « effacer les données du site » effacerait les
+dossiers. `test/miseAJour.test.ts` borde tout cela.
+
 Elle s'installe sur l'écran d'accueil sans boutique ni compte développeur :
 manifeste (`start_url: /?local=1`), service worker (`public/sw.js`), icônes
 dessinées par `npm run generer:icones` — encodeur PNG écrit à la main, aucune

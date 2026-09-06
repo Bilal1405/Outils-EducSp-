@@ -24,3 +24,9 @@ sauvegardes/
 # Moteur PostgreSQL du navigateur : copié depuis node_modules par
 # `npm run vendor:pglite`, jamais versionné (16 Mo).
 public/vendor/pglite/
+
+# Tampon de version et service worker : produits à chaque construction
+# (`npm run build`), jamais versionnés — ils changent à chaque déploiement.
+public/version.json
+public/js/version.js
+public/sw.js

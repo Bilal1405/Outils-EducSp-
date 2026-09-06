@@ -427,11 +427,43 @@ controle("Serveur", "Réponse et base de données", async () => {
   }
 });
 
-controle("Serveur", "Version déployée", () =>
-  etatServeur.version
-    ? verdict(BON, etatServeur.version)
-    : verdict(INCONNU, "non communiquée")
-);
+/**
+ * La question qui a coûté le plus de temps : quelle version cet appareil
+ * exécute-t-il ?
+ *
+ * Une interface servie depuis le cache peut avoir plusieurs déploiements de
+ * retard sans que rien ne le montre. On a corrigé à plusieurs reprises des
+ * défauts déjà corrigés, faute de pouvoir répondre.
+ */
+controle("Serveur", "Version", async () => {
+  try {
+    const { verifierLaVersion } = await import("/js/pwa.js");
+    const etat = await verifierLaVersion();
+
+    if (!etat) {
+      return verdict(
+        INCONNU,
+        etatServeur.version ?? "non communiquée",
+        "Cette page n'embarque pas de tampon de construction."
+      );
+    }
+    if (etat.publiee === null) {
+      return verdict(BON, `${etat.courante} (serveur injoignable)`);
+    }
+    if (etat.aJour) {
+      return verdict(BON, `${etat.courante} — à jour`);
+    }
+    return verdict(
+      LIMITE,
+      `cet appareil exécute ${etat.courante}, le serveur publie ${etat.publiee}`,
+      "Fermez et rouvrez l'application : elle proposera d'actualiser. " +
+        "Si elle reste en retard, utilisez « Repartir d'une interface neuve » " +
+        "ci-dessous."
+    );
+  } catch (err) {
+    return verdict(INCONNU, `vérification impossible : ${err.message}`);
+  }
+});
 
 const etatServeur = { version: null };
 
@@ -597,6 +629,35 @@ function brancherEssaiDictee() {
   });
 }
 
+/**
+ * Réinstalle l'interface, sans toucher aux dossiers.
+ *
+ * La confirmation n'est pas une formalité : l'opération déconnecte le service
+ * worker, donc l'application ne s'ouvrira plus hors réseau tant qu'elle n'aura
+ * pas été rechargée une fois avec du réseau.
+ */
+function brancherRepartirDeZero() {
+  const bouton = document.getElementById("repartir");
+  const etat = document.getElementById("repartir-etat");
+  if (!bouton) return;
+
+  bouton.addEventListener("click", async () => {
+    bouton.disabled = true;
+    etat.textContent = "Suppression des caches de l'interface…";
+    try {
+      const { repartirDeZero } = await import("/js/pwa.js");
+      const supprimes = await repartirDeZero();
+      etat.textContent =
+        `${supprimes.length} cache(s) supprimé(s). Rechargement…` +
+        " Vos dossiers sont intacts.";
+      setTimeout(() => location.reload(), 1200);
+    } catch (err) {
+      etat.textContent = `Échec : ${err.message}`;
+      bouton.disabled = false;
+    }
+  });
+}
+
 async function lancer() {
   document.getElementById("controles-vides").hidden = true;
 
@@ -613,6 +674,7 @@ async function lancer() {
   }
 
   brancherEssaiDictee();
+  brancherRepartirDeZero();
 
   document.getElementById("copier").hidden = false;
   document.getElementById("copier").addEventListener("click", async () => {

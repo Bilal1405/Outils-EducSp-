@@ -68,6 +68,19 @@
   <section class="diagnostic-groupe" data-groupe="Serveur">
     <h2>Serveur</h2>
     <div class="controles"></div>
+    <!-- Recours quand une version périmée s'accroche. La manœuvre connue
+         jusqu'ici — « effacer les données du site » — effaçait aussi la base
+         de données, donc les dossiers. On ne fait pas perdre des données de
+         santé pour rafraîchir un fichier JavaScript. -->
+    <p class="aide">
+      Si l'application reste en retard malgré un redémarrage, ceci réinstalle
+      l'interface. <strong>Les dossiers ne sont pas touchés</strong> : ils
+      vivent dans la base de l'appareil, que cette opération ne lit même pas.
+    </p>
+    <button type="button" id="repartir" class="btn btn-secondaire">
+      Repartir d'une interface neuve
+    </button>
+    <p id="repartir-etat" class="aide" role="status" aria-live="polite"></p>
   </section>
 
   <footer class="diagnostic-pied">

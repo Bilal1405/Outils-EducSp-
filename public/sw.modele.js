@@ -24,47 +24,29 @@
  */
 
 /**
- * À incrémenter quand le contenu de `PRECACHE` change de forme.
+ * FICHIER MODÈLE — `public/sw.js` en est produit par `npm run generer:sw`.
+ * Ne pas modifier `sw.js` à la main : il est réécrit à chaque construction.
  *
- * Les anciens caches sont effacés à l'activation : c'est ce numéro qui décide
- * qu'un cache est ancien.
+ * La version est celle de la construction, et non un numéro à incrémenter.
+ * Tant qu'il fallait y penser, un déploiement pouvait laisser ce fichier
+ * identique — le navigateur ne voyait alors aucune mise à jour, et l'appareil
+ * gardait l'ancienne interface sans que rien ne le dise.
  */
-const VERSION = "v2";
+const VERSION = "__VERSION__";
 const CACHE = `educsp-${VERSION}`;
 
 /**
- * Le strict nécessaire pour que l'application s'ouvre hors réseau.
+ * Tout ce qu'il faut pour que l'application s'ouvre hors réseau.
  *
- * Volontairement court : les moteurs WebAssembly sont mis en cache au premier
- * usage, pas à l'installation. Précharger seize mégaoctets pendant que
- * l'utilisateur attend son écran d'accueil serait le punir d'avoir installé.
+ * Les moteurs WebAssembly en sont exclus : ils sont mis en cache au premier
+ * usage, précharger seize mégaoctets punirait l'utilisateur d'avoir installé.
+ *
+ * Relevé sur le disque à la construction, jamais écrit à la main : un fichier
+ * ajouté à l'interface et oublié ici ne casse rien à l'écran, il manque
+ * seulement hors réseau — là où l'on ne peut plus rien corriger.
  */
 const PRECACHE = [
-  "/",
-  "/index.html",
-  "/style.css",
-  "/manifeste.webmanifest",
-  "/icones/icone-192.png",
-  "/icones/icone-512.png",
-  "/js/app.js",
-  "/js/api.js",
-  "/js/etat.js",
-  "/js/ui.js",
-  "/js/portail.js",
-  "/js/preparation.js",
-  "/js/reglages.js",
-  "/js/beneficiaires.js",
-  "/js/redaction.js",
-  "/js/dictee.js",
-  "/js/bilan.js",
-  "/js/parcours.js",
-  "/js/pilotage.js",
-  "/js/pwa.js",
-  "/js/local/base.js",
-  "/js/local/routeur.js",
-  "/js/local/migrations.js",
-  "/js/local/schema.js",
-  "/js/local/contenuVierge.js",
+__PRECACHE__
 ];
 
 self.addEventListener("install", (evenement) => {
@@ -151,6 +133,12 @@ self.addEventListener("fetch", (evenement) => {
   // Jamais de donnée de santé en cache : une réponse périmée vaut moins que
   // pas de réponse du tout.
   if (url.pathname.startsWith("/api/")) return;
+
+  // Ni le tampon de version : c'est le seul fichier dont tout l'intérêt est de
+  // venir du serveur à chaque fois. Servi depuis le cache, il affirmait que
+  // l'appareil était à jour quel que soit le déploiement — exactement la panne
+  // qu'il est censé détecter.
+  if (url.pathname === "/version.json") return;
 
   if (requete.mode === "navigate") {
     evenement.respondWith(reseauDabord(requete));

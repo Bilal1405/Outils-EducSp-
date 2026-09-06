@@ -167,7 +167,7 @@ function surveillerLesMisesAJour(enregistrement) {
 
   const bandeau = $("maj");
   if (bandeau) {
-    $("maj-appliquer").addEventListener("click", () => location.reload());
+    $("maj-appliquer").addEventListener("click", appliquerLaMiseAJour);
     $("maj-plus-tard").addEventListener("click", () => {
       bandeau.hidden = true;
       bandeau.dataset.ecarte = "1";
@@ -179,6 +179,128 @@ function surveillerLesMisesAJour(enregistrement) {
   // correction peut attendre des jours sur un appareil qui ne ferme jamais
   // l'application.
   enregistrement.update().catch(() => {});
+}
+
+/**
+ * Applique la mise à jour en un seul geste.
+ *
+ * Recharger tout de suite ne suffisait pas, et c'est le défaut central de
+ * l'ancien mécanisme : le rechargement était encore servi par l'ancien service
+ * worker, donc par l'ancienne interface. Celui-ci n'installait son remplaçant
+ * qu'*après* coup, si bien qu'il fallait fermer et rouvrir une seconde fois.
+ * Personne ne devine cela, et rien ne le disait — d'où des corrections
+ * signalées comme inopérantes alors qu'elles n'avaient jamais été chargées.
+ *
+ * On installe donc le remplaçant, on attend qu'il ait pris la main, et l'on
+ * recharge seulement ensuite. Un clic, une version.
+ */
+const ATTENTE_RELEVE_MS = 10000;
+
+export async function appliquerLaMiseAJour() {
+  const bouton = $("maj-appliquer");
+  if (bouton) {
+    bouton.disabled = true;
+    bouton.textContent = "Mise à jour…";
+  }
+
+  try {
+    const enregistrement = await navigator.serviceWorker?.getRegistration();
+    if (enregistrement) {
+      const releve = new Promise((resoudre) => {
+        navigator.serviceWorker.addEventListener("controllerchange", resoudre, {
+          once: true,
+        });
+      });
+
+      await enregistrement.update();
+
+      // Rien de neuf à attendre : le remplaçant est déjà aux commandes, ou il
+      // n'y en a pas. Attendre la relève ne ferait que retarder de dix
+      // secondes un rechargement qui suffit.
+      if (enregistrement.installing || enregistrement.waiting) {
+        await Promise.race([
+          releve,
+          new Promise((r) => setTimeout(r, ATTENTE_RELEVE_MS)),
+        ]);
+      }
+    }
+  } catch {
+    /* On recharge quand même : au pire, il faudra recommencer. */
+  }
+
+  location.reload();
+}
+
+/**
+ * Repart d'une interface neuve, sans toucher aux dossiers.
+ *
+ * Recours de dernier ressort quand une version périmée s'accroche. La seule
+ * manœuvre connue jusqu'ici était « effacer les données du site » — qui efface
+ * aussi la base de données, donc les dossiers des bénéficiaires. Recommander
+ * cela comme procédure de mise à jour était une faute : on ne fait pas perdre
+ * des données de santé pour rafraîchir un fichier JavaScript.
+ *
+ * Ne sont supprimés que les caches de l'interface. IndexedDB, où vit la base,
+ * n'est pas touché.
+ */
+export async function repartirDeZero() {
+  const supprimes = [];
+  if (typeof caches !== "undefined") {
+    for (const nom of await caches.keys()) {
+      // `transformers-cache` est épargné : le modèle de dictée pèse cent
+      // quarante mégaoctets et n'a rien à voir avec la version de l'interface.
+      if (nom.startsWith("educsp-")) {
+        await caches.delete(nom);
+        supprimes.push(nom);
+      }
+    }
+  }
+  if ("serviceWorker" in navigator) {
+    for (const enr of await navigator.serviceWorker.getRegistrations()) {
+      await enr.unregister();
+    }
+  }
+  return supprimes;
+}
+
+/**
+ * Second mécanisme, indépendant du premier : comparer les versions.
+ *
+ * Le service worker peut ne rien signaler — navigateur qui ne revérifie pas,
+ * enregistrement perdu, mise à jour installée pendant que l'onglet dormait.
+ * Cette comparaison-là ne dépend de rien : d'un côté la version embarquée dans
+ * le code en train de s'exécuter, de l'autre celle que le serveur publie.
+ *
+ * Deux mécanismes qui échouent différemment valent mieux qu'un seul auquel on
+ * fait confiance.
+ */
+export async function verifierLaVersion() {
+  let courante;
+  try {
+    ({ VERSION: courante } = await import("./version.js"));
+  } catch {
+    // Interface servie sans tampon de construction : rien à comparer.
+    return null;
+  }
+
+  let publiee = null;
+  try {
+    const reponse = await fetch("/version.json", { cache: "no-store" });
+    if (reponse.ok) publiee = (await reponse.json()).id;
+  } catch {
+    // Hors réseau : c'est normal, et ce n'est pas une anomalie à signaler.
+    return { courante: courante.id, publiee: null, aJour: true };
+  }
+
+  const aJour = !publiee || publiee === courante.id;
+  if (!aJour) {
+    const bandeau = $("maj");
+    if (bandeau && bandeau.dataset.ecarte !== "1") {
+      masquerBandeau(false);
+      bandeau.hidden = false;
+    }
+  }
+  return { courante: courante.id, publiee, aJour };
 }
 
 /**
@@ -198,6 +320,9 @@ async function protegerLesDossiers() {
 
 export async function initInstallation({ local }) {
   await enregistrerServiceWorker();
+  // Indépendamment du service worker, et même en mode serveur : savoir qu'on
+  // travaille sur une version périmée vaut pour tout le monde.
+  void verifierLaVersion();
   if (!local || installee()) return;
 
   void protegerLesDossiers();

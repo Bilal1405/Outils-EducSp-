@@ -5,8 +5,8 @@
   "description": "Moteur de génération de bilans éducatifs trimestriels (PCPE) assisté par IA",
   "type": "commonjs",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "dev": "tsx watch src/server.ts",
+    "build": "npm run generer:sw && tsc -p tsconfig.build.json",
+    "dev": "npm run generer:sw && tsx watch src/server.ts",
     "start": "node dist/src/server.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -20,7 +20,9 @@
     "vendor:pglite": "node scripts/vendor-pglite.mjs",
     "generer:migrations": "node scripts/generer-migrations.mjs",
     "generer:schema": "tsx scripts/generer-schema.ts",
-    "generer:icones": "node scripts/generer-icones.mjs"
+    "generer:icones": "node scripts/generer-icones.mjs",
+    "generer:version": "node scripts/generer-version.mjs",
+    "generer:sw": "node scripts/generer-version.mjs && node scripts/generer-sw.mjs"
   },
   "dependencies": {
     "docx": "^9.7.1",
