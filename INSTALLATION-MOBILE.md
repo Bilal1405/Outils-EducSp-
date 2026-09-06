@@ -65,9 +65,18 @@ Un praticien qui écrit au clavier ne le télécharge jamais.
 
 ## Mettre à jour
 
-Rien à faire : l'application se met à jour au lancement suivant dès qu'il y a
-du réseau. La base et son contenu ne sont pas touchés — les migrations
-s'appliquent comme sur un serveur.
+Rien à faire. L'application vérifie à chaque lancement s'il existe une nouvelle
+version et, quand c'est le cas, affiche « Nouvelle version disponible ».
+« Actualiser » l'applique en une seconde.
+
+Pourquoi ce n'est pas immédiat sans ce bouton : l'interface est servie depuis
+le cache de l'appareil, pour pouvoir s'ouvrir sans réseau. Une version déployée
+n'est donc active qu'au lancement suivant. On ne recharge pas de force — une
+actualisation au milieu d'une saisie ferait perdre ce qui n'est pas encore
+enregistré.
+
+La base et son contenu ne sont jamais touchés par une mise à jour : les
+migrations s'appliquent comme sur un serveur, les dossiers restent.
 
 ## Diagnostiquer
 

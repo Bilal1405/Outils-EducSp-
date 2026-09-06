@@ -29,7 +29,7 @@
  * Les anciens caches sont effacés à l'activation : c'est ce numéro qui décide
  * qu'un cache est ancien.
  */
-const VERSION = "v1";
+const VERSION = "v2";
 const CACHE = `educsp-${VERSION}`;
 
 /**

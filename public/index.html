@@ -203,6 +203,21 @@
   </div>
 </div>
 
+<!-- Une nouvelle version est prête. L'interface étant servie depuis le cache
+     pour s'ouvrir sans réseau, elle ne prend effet qu'au lancement suivant :
+     sans ce bandeau, l'utilisateur travaillerait une séance entière sur
+     l'ancienne sans le savoir. -->
+<div id="maj" class="installer" role="status" aria-live="polite" hidden>
+  <div class="installer-texte">
+    <strong>Nouvelle version disponible</strong>
+    <span>Vos dossiers ne sont pas touchés : ils restent sur cet appareil.</span>
+  </div>
+  <div class="installer-actions">
+    <button type="button" id="maj-plus-tard" class="btn btn-lien">Plus tard</button>
+    <button type="button" id="maj-appliquer" class="btn btn-primaire">Actualiser</button>
+  </div>
+</div>
+
 <!-- Invitation à installer l'application sur l'écran d'accueil. Elle ne paraît
      qu'en mode local, quand Android la propose, et ne revient pas si elle est
      écartée : l'installation apporte le stockage persistant et le

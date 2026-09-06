@@ -67,6 +67,10 @@ function afficherBandeau(mode) {
   const bandeau = $("installer");
   if (!bandeau || bandeau.dataset.ecarte === "1" || installee()) return;
   if (vueCourante !== "accueil") return;
+  // Les deux bandeaux occupent le même bas d'écran. La mise à jour prime :
+  // elle est actionnable tout de suite, l'invitation à installer peut attendre
+  // le lancement suivant.
+  if (!$("maj").hidden) return;
 
   $("installer-valider").hidden = mode !== "invitation";
   $("installer-detail").textContent =
@@ -109,13 +113,72 @@ export function ecarterInstallationPour(vue) {
 async function enregistrerServiceWorker() {
   if (!("serviceWorker" in navigator)) return null;
   try {
-    return await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    const enregistrement = await navigator.serviceWorker.register("/sw.js", {
+      scope: "/",
+    });
+    surveillerLesMisesAJour(enregistrement);
+    return enregistrement;
   } catch (err) {
     // Pas de quoi arrêter l'application : elle fonctionne, elle ne survivra
     // simplement pas à une coupure réseau.
     console.warn("[installation] service worker refusé :", err.message);
     return null;
   }
+}
+
+/**
+ * Prévient quand une nouvelle version est prête.
+ *
+ * L'interface est servie depuis le cache pour s'ouvrir sans réseau : une
+ * version déployée n'est donc active qu'au lancement **suivant**. Sans
+ * avertissement, un praticien travaillerait une séance entière sur l'ancienne
+ * sans le savoir — y compris après avoir signalé un défaut et reçu sa
+ * correction.
+ *
+ * On ne recharge pas de force : une actualisation au milieu d'une saisie ferait
+ * perdre ce qui n'est pas encore enregistré. C'est à l'utilisateur de choisir
+ * son moment.
+ */
+function surveillerLesMisesAJour(enregistrement) {
+  const proposer = () => {
+    const bandeau = $("maj");
+    if (!bandeau || bandeau.dataset.ecarte === "1") return;
+    // Une seule invitation à la fois, au même endroit de l'écran.
+    masquerBandeau(false);
+    bandeau.hidden = false;
+  };
+
+  const suivre = (arrivant) => {
+    if (!arrivant) return;
+    arrivant.addEventListener("statechange", () => {
+      // `controller` absent : c'est la toute première installation, il n'y a
+      // rien à remplacer et donc rien à annoncer.
+      if (arrivant.state === "installed" && navigator.serviceWorker.controller) {
+        proposer();
+      }
+    });
+  };
+
+  if (enregistrement.waiting && navigator.serviceWorker.controller) proposer();
+  suivre(enregistrement.installing);
+  enregistrement.addEventListener("updatefound", () =>
+    suivre(enregistrement.installing)
+  );
+
+  const bandeau = $("maj");
+  if (bandeau) {
+    $("maj-appliquer").addEventListener("click", () => location.reload());
+    $("maj-plus-tard").addEventListener("click", () => {
+      bandeau.hidden = true;
+      bandeau.dataset.ecarte = "1";
+    });
+  }
+
+  // Le navigateur ne revérifie pas toujours de lui-même. Une demande explicite
+  // au lancement suffit : elle ne coûte qu'une requête, et sans elle une
+  // correction peut attendre des jours sur un appareil qui ne ferme jamais
+  // l'application.
+  enregistrement.update().catch(() => {});
 }
 
 /**
