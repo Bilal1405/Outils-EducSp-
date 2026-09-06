@@ -20,3 +20,7 @@ public/vendor/transformers.min.js
 # Sauvegardes de base : contiennent des données de santé, jamais versionnées.
 sauvegardes/
 *.dump
+
+# Moteur PostgreSQL du navigateur : copié depuis node_modules par
+# `npm run vendor:pglite`, jamais versionné (16 Mo).
+public/vendor/pglite/

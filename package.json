@@ -16,7 +16,9 @@
     "postinstall": "node scripts/vendor-asr.mjs --tolerant",
     "sauvegarde": "node scripts/sauvegarde.mjs",
     "migrate:prod": "node dist/scripts/migrate.js",
-    "start:prod": "node dist/scripts/demarrer.js"
+    "start:prod": "node dist/scripts/demarrer.js",
+    "vendor:pglite": "node scripts/vendor-pglite.mjs",
+    "generer:migrations": "node scripts/generer-migrations.mjs"
   },
   "dependencies": {
     "docx": "^9.7.1",
