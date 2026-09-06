@@ -2459,13 +2459,17 @@ dialog::backdrop {
 }
 
 /* Invitation à installer, posée au-dessus du contenu et au-dessus de la barre
-   de gestes d'Android. */
+   de gestes d'Android.
+
+   Au-dessus de l'écran de mise en service (200) : c'est là qu'elle a le plus
+   de sens, un premier lancement étant le moment d'installer. En dessous des
+   écrans de préparation (210), qui demandent d'attendre et non de choisir. */
 .installer {
   position: fixed;
   left: 0.75rem;
   right: 0.75rem;
   bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
-  z-index: 190;
+  z-index: 205;
   display: flex;
   flex-wrap: wrap;
   align-items: center;

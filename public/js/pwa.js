@@ -3,7 +3,7 @@
  *
  * Il n'y a pas de boutique : pas de compte développeur, pas de validation, pas
  * de délai. Android sait installer une application web directement depuis le
- * navigateur — l'icône se pose sur l'écran d'accueil, l'application s'ouvre
+ * navigateur — l'icône rejoint les autres applications, l'application s'ouvre
  * sans barre d'adresse, et fonctionne sans réseau.
  *
  * L'installation n'est pas un confort ici, elle a deux effets techniques :
@@ -13,18 +13,67 @@
  *    de la place — c'est-à-dire, ici, des dossiers de bénéficiaires ;
  *  - le service worker garde l'interface hors ligne, ce dont dépend tout
  *    l'intérêt d'une base locale.
- *
- * D'où une invitation visible, mais pas insistante : elle ne paraît qu'en mode
- * local, se referme, et ne revient pas de la séance.
  */
 import { $ } from "./ui.js";
 
-/** Retenu tant que l'utilisateur n'a pas tranché : Android n'en donne qu'un. */
+/**
+ * L'invitation d'Android, retenue dès qu'elle arrive.
+ *
+ * Elle est capturée ici, à l'évaluation du module, et non dans
+ * `initInstallation` : Chrome émet `beforeinstallprompt` dans les premières
+ * secondes qui suivent le chargement, alors que le démarrage de l'application
+ * attend l'ouverture de la base locale — une minute au premier lancement sur
+ * un téléphone. L'écoute posée après coup n'entendait rien, et le bandeau
+ * d'installation n'apparaissait jamais.
+ */
 let invitation = null;
+let quandElleArrive = null;
 
-function afficherBandeau() {
+/**
+ * L'écran affiché en ce moment.
+ *
+ * Le bandeau peut paraître plusieurs secondes après le démarrage, donc après
+ * que l'utilisateur a déjà ouvert un dossier. Réagir aux changements d'écran
+ * ne suffisait pas : il faut aussi savoir, au moment de s'afficher, si l'écran
+ * courant lui laisse la place.
+ */
+let vueCourante = "accueil";
+
+window.addEventListener("beforeinstallprompt", (evenement) => {
+  // Sans cela, Chrome affiche sa propre invitation, au moment qui l'arrange.
+  evenement.preventDefault();
+  invitation = evenement;
+  if (quandElleArrive) quandElleArrive();
+});
+
+/** L'application tourne-t-elle depuis l'écran d'accueil, hors navigateur ? */
+export function installee() {
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true
+  );
+}
+
+/**
+ * Délai au-delà duquel on considère qu'Android ne proposera rien.
+ *
+ * Chrome n'émet pas toujours l'invitation : navigateur tiers, application déjà
+ * installée, ou critères jugés non réunis. Sans repli, l'utilisateur reste
+ * devant une application qu'il ne sait pas installer — et rien ne le lui dit.
+ */
+const DELAI_INVITATION_MS = 4000;
+
+function afficherBandeau(mode) {
   const bandeau = $("installer");
-  if (!bandeau || bandeau.dataset.ecarte === "1") return;
+  if (!bandeau || bandeau.dataset.ecarte === "1" || installee()) return;
+  if (vueCourante !== "accueil") return;
+
+  $("installer-valider").hidden = mode !== "invitation";
+  $("installer-detail").textContent =
+    mode === "invitation"
+      ? "Ouverture sans réseau, et vos dossiers protégés d'un effacement automatique."
+      : "Votre navigateur ne l'a pas proposé. Menu ⋮ en haut à droite, puis " +
+        "« Installer l'application » ou « Ajouter à l'écran d'accueil ».";
   bandeau.hidden = false;
 }
 
@@ -33,6 +82,22 @@ function masquerBandeau(definitivement) {
   if (!bandeau) return;
   bandeau.hidden = true;
   if (definitivement) bandeau.dataset.ecarte = "1";
+}
+
+/**
+ * Le bandeau ne paraît que sur l'écran d'accueil.
+ *
+ * Il est posé en bas de la fenêtre — là où le parcours guidé place « Étape
+ * suivante » et où la fiche d'un bénéficiaire place « Commencer le bilan ».
+ * Une invitation qui recouvre le bouton qu'on cherche à atteindre cesse d'être
+ * une invitation. L'accueil est le seul écran dont le bas ne porte rien, et
+ * c'est de toute façon le moment où l'on décide d'installer.
+ */
+export function ecarterInstallationPour(vue) {
+  vueCourante = vue;
+  if (vue !== "accueil") {
+    masquerBandeau(false);
+  }
 }
 
 /**
@@ -70,28 +135,18 @@ async function protegerLesDossiers() {
 
 export async function initInstallation({ local }) {
   await enregistrerServiceWorker();
-  if (!local) return;
+  if (!local || installee()) return;
 
   void protegerLesDossiers();
 
-  const bandeau = $("installer");
-  if (bandeau) {
-    $("installer-valider").addEventListener("click", async () => {
-      masquerBandeau(true);
-      if (!invitation) return;
-      invitation.prompt();
-      await invitation.userChoice.catch(() => {});
-      invitation = null;
-    });
-    $("installer-plus-tard").addEventListener("click", () => masquerBandeau(true));
-  }
-
-  window.addEventListener("beforeinstallprompt", (evenement) => {
-    // Sans cela, Chrome affiche sa propre invitation, au moment qui l'arrange.
-    evenement.preventDefault();
-    invitation = evenement;
-    afficherBandeau();
+  $("installer-valider").addEventListener("click", async () => {
+    if (!invitation) return;
+    masquerBandeau(true);
+    invitation.prompt();
+    await invitation.userChoice.catch(() => {});
+    invitation = null;
   });
+  $("installer-plus-tard").addEventListener("click", () => masquerBandeau(true));
 
   window.addEventListener("appinstalled", () => {
     masquerBandeau(true);
@@ -100,12 +155,16 @@ export async function initInstallation({ local }) {
     // réclamer, il sera accordé sans question.
     void protegerLesDossiers();
   });
-}
 
-/** L'application tourne-t-elle depuis l'écran d'accueil, hors navigateur ? */
-export function installee() {
-  return (
-    window.matchMedia("(display-mode: standalone)").matches ||
-    window.navigator.standalone === true
-  );
+  if (invitation) {
+    afficherBandeau("invitation");
+    return;
+  }
+
+  // Elle peut encore arriver — ou jamais. On attend un peu, puis on explique
+  // la marche à suivre plutôt que de laisser l'utilisateur sans rien.
+  quandElleArrive = () => afficherBandeau("invitation");
+  setTimeout(() => {
+    if (!invitation) afficherBandeau("manuel");
+  }, DELAI_INVITATION_MS);
 }

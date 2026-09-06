@@ -5,8 +5,47 @@
  * bénéficiaires, ni les trames, ni le modèle de dictée — n'est chargé tant que
  * la session n'est pas établie.
  */
-import { api } from "./api.js";
+import { api, modeLocal } from "./api.js";
 import { $, statut } from "./ui.js";
+
+/**
+ * Adapte la mise en service à un praticien indépendant.
+ *
+ * Sur son appareil, il n'y a ni établissement, ni quota — qui compte des
+ * bilans pour les facturer —, ni compte à qui se connecter, puisqu'il n'y a
+ * pas de serveur.
+ *
+ * Le mot de passe, surtout, disparaît : il n'est utilisé nulle part en local.
+ * En demander un laisserait croire qu'il protège les dossiers, alors que ce
+ * sont le verrouillage de l'appareil et son chiffrement qui les protègent.
+ * Faire croire à une sécurité qui n'existe pas est pire que de ne rien
+ * promettre.
+ */
+function adapterAuPraticienSeul() {
+  $("form-initialisation").querySelector("h1").textContent = "Bienvenue";
+  $("form-initialisation").querySelector(".aide").textContent =
+    "Vos dossiers resteront sur cet appareil. Indiquez simplement votre nom : " +
+    "il figurera comme auteur des bilans.";
+
+  $("init-etablissement-champ").querySelector(".champ-label").textContent =
+    "Nom de votre activité (facultatif)";
+  $("init-etablissement").removeAttribute("required");
+
+  $("init-quota-champ").hidden = true;
+
+  // Repéré par sa classe : ce bloc n'a pas d'identifiant.
+  const deja = $("form-initialisation").querySelector(".portail-deja");
+  if (deja) deja.hidden = true;
+
+  // Un champ requis mais masqué empêche l'envoi du formulaire sans rien
+  // afficher : le navigateur refuse de mettre le focus dessus, et l'on cherche
+  // longtemps pourquoi le bouton ne fait rien.
+  const motDePasse = $("init-mot-de-passe");
+  motDePasse.removeAttribute("required");
+  motDePasse.closest(".champ").hidden = true;
+
+  $("init-valider").textContent = "Commencer";
+}
 
 /**
  * Affiche le portail et résout quand une session est ouverte.
@@ -58,6 +97,10 @@ export function ouvrirPortail({ initialise, etablissementExistant }) {
 
   function premierChampInitialisation() {
     return repris ? "init-prenom" : "init-etablissement";
+  }
+
+  if (modeLocal()) {
+    adapterAuPraticienSeul();
   }
 
   montrer(miseEnServicePossible ? "initialisation" : "connexion");

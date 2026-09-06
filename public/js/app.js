@@ -41,11 +41,16 @@ import { initParcours, ouvrirParcours, parcoursModifie } from "./parcours.js";
 import { initPilotage, ouvrirJournal, ouvrirTableauDeBord } from "./pilotage.js";
 import { ouvrirPortail } from "./portail.js";
 import { preparerOutil } from "./preparation.js";
-import { initInstallation } from "./pwa.js";
+import { ecarterInstallationPour, initInstallation } from "./pwa.js";
 
 // --- Vues et onglets ---
 
 function montrerVue(nom) {
+  // Le bandeau d'installation est posé en bas de l'écran, là où le parcours
+  // guidé met « Étape suivante ». Il s'efface donc dès qu'on entre dans un
+  // document, et reparaîtra au lancement suivant.
+  ecarterInstallationPour(nom);
+
   $("vue-accueil").hidden = nom !== "accueil";
   $("vue-beneficiaire").hidden = nom !== "beneficiaire";
   $("vue-parcours").hidden = nom !== "parcours";
@@ -420,10 +425,16 @@ async function amorcer() {
   // style en a besoin pour retirer ce qui ne veut rien dire chez un praticien
   // seul — le vocabulaire d'établissement, les étapes de mise en route déjà
   // faites, la jauge de quota.
+  // Avant tout le reste, et surtout avant l'écran de mise en service : celui-ci
+  // attend une saisie, parfois longuement. Brancher l'installation après lui,
+  // c'est ne jamais rien proposer à qui vient d'ouvrir l'application pour la
+  // première fois — c'est-à-dire précisément le moment d'installer.
+  void initInstallation({ local: modeLocal() });
+
   if (modeLocal()) {
     document.documentElement.dataset.mode = "local";
-    // Avant tout le reste : rien de l'interface ne peut s'afficher sans base,
-    // et c'est la seule attente longue de l'application.
+    // Rien de l'interface ne peut s'afficher sans base, et c'est la seule
+    // attente longue de l'application.
     if (!(await ouvrirBaseLocale())) return;
   }
 
@@ -472,8 +483,6 @@ async function amorcer() {
   $("app").hidden = false;
   majBandeau();
   demarrer(donnees);
-
-  void initInstallation({ local: modeLocal() });
 
   // Tout ce qui se chargeait au premier clic sur le micro se charge ici.
   // L'application est déjà peinte dessous : quand la préparation est courte —

@@ -210,11 +210,18 @@
 <div id="installer" class="installer" role="region" aria-label="Installer l'application" hidden>
   <div class="installer-texte">
     <strong>Installer sur cet appareil</strong>
-    <span>Ouverture sans réseau, et vos dossiers protégés d'un effacement automatique.</span>
+    <span id="installer-detail"></span>
   </div>
   <div class="installer-actions">
     <button type="button" id="installer-plus-tard" class="btn btn-lien">Plus tard</button>
-    <button type="button" id="installer-valider" class="btn btn-primaire">Installer</button>
+    <!-- Deux cas. Quand Android propose l'installation, ce bouton la
+         déclenche. Quand il ne la propose pas — navigateur tiers, critères
+         jugés non réunis, application déjà installée — le bandeau explique
+         où la trouver, sans quoi l'utilisateur reste devant une application
+         qu'il ne sait pas installer. -->
+    <button type="button" id="installer-valider" class="btn btn-primaire" hidden>
+      Installer
+    </button>
   </div>
 </div>
 
