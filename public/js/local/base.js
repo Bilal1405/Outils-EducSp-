@@ -86,8 +86,12 @@ async function appliquerMigrations(base, onEtape) {
   const deja = new Set(rows.map((r) => r.name));
   const restantes = MIGRATIONS.filter((m) => !deja.has(m.nom));
 
-  for (const [index, migration] of restantes.entries()) {
-    onEtape(`Mise à jour de la base (${index + 1}/${restantes.length})…`);
+  // Compté sur le total, et non sur ce qui reste : au deuxième lancement,
+  // avec une seule migration en retard, « 1/1 » ne disait rien de la position
+  // réelle du schéma et laissait croire que tout venait d'être reconstruit.
+  for (const migration of restantes) {
+    const rang = MIGRATIONS.indexOf(migration) + 1;
+    onEtape(`Mise à jour du schéma (${rang}/${MIGRATIONS.length})…`);
     await base.transaction(async (tx) => {
       await tx.executerScript(migration.sql);
       await tx.query("INSERT INTO schema_migrations (name) VALUES ($1)", [migration.nom]);
@@ -122,9 +126,15 @@ export function ouvrirBase(onEtape = () => {}) {
       );
     }
 
+    // La partie la plus longue du premier lancement, et la seule qui ne rende
+    // aucun compte : PGlite télécharge puis instancie PostgreSQL compilé en
+    // WebAssembly. Laisser « Ouverture de la base locale… » figé pendant une
+    // demi-minute donnait l'impression que rien ne se passait.
+    onEtape("Installation de PostgreSQL sur l'appareil…");
     const client = await PGlite.create(EMPLACEMENT, {
       parsers: { [OID_DATE]: (valeur) => valeur },
     });
+    onEtape("Vérification du schéma…");
 
     const base = {
       ...enrober(client),

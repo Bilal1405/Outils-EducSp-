@@ -8,6 +8,7 @@
 import { api } from "./api.js";
 import { etat, emettre } from "./etat.js";
 import { $, creer, notifier, statut, initiales, vider } from "./ui.js";
+import { choisirTheme, themeChoisi } from "./theme.js";
 
 /** En dessous de ce reste, le quota passe en alerte visuelle. */
 const SEUIL_QUOTA_BAS = 0.2;
@@ -344,7 +345,30 @@ function telechargerSauvegarde() {
   setTimeout(majEtatSauvegarde, 1500);
 }
 
+/**
+ * Bascule d'apparence. Le thème est déjà appliqué au chargement du module
+ * `theme.js` ; il ne reste ici qu'à refléter le choix courant et à le changer.
+ */
+function initApparence() {
+  const boutons = [...document.querySelectorAll("[data-theme-choix]")];
+
+  const refleter = (choix) => {
+    for (const bouton of boutons) {
+      bouton.setAttribute(
+        "aria-checked",
+        bouton.dataset.themeChoix === choix ? "true" : "false"
+      );
+    }
+  };
+
+  for (const bouton of boutons) {
+    bouton.addEventListener("click", () => refleter(choisirTheme(bouton.dataset.themeChoix)));
+  }
+  refleter(themeChoisi());
+}
+
 export function initReglages() {
+  initApparence();
   $("sauvegarde-btn").addEventListener("click", telechargerSauvegarde);
   $("reglages-btn").addEventListener("click", () => ouvrirReglages());
   $("reglages-fermer").addEventListener("click", () => $("reglages").close());

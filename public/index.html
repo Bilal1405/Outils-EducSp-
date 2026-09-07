@@ -15,7 +15,11 @@
        démarre sur `?local=1`, si bien qu'une application installée ouvre
        toujours la base de l'appareil. -->
   <link rel="manifest" href="/manifeste.webmanifest" />
-  <meta name="theme-color" content="#c26b3c" />
+  <!-- Deux valeurs, une par thème : sans cela la barre d'état d'Android
+       resterait terre cuite sur une application affichée en sombre. La
+       bascule explicite des réglages les met à jour en JavaScript. -->
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#faf5ef" />
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1a1613" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Bilans" />
@@ -36,6 +40,8 @@
   <link rel="modulepreload" href="/js/etat.js" />
   <link rel="modulepreload" href="/js/ui.js" />
   <link rel="modulepreload" href="/js/portail.js" />
+  <link rel="modulepreload" href="/js/theme.js" />
+  <link rel="modulepreload" href="/js/chargement.js" />
   <link rel="modulepreload" href="/js/preparation.js" />
   <link rel="modulepreload" href="/js/pwa.js" />
   <link rel="modulepreload" href="/js/reglages.js" />
@@ -165,41 +171,54 @@
   </div>
 </div>
 
-<!-- Première ouverture de la base locale. Sans cet écran, la page reste blanche
-     pendant que PostgreSQL se télécharge et s'installe sur l'appareil — une
-     minute sur un téléphone, sans rien à regarder, ce qui se lit comme une
-     application cassée. -->
-<div id="ouverture" class="preparation" role="status" aria-live="polite" hidden>
-  <div class="preparation-carte">
+<!-- L'écran de chargement de l'application — le seul.
+
+     Il y en avait trois, qui ne se connaissaient pas : l'ouverture de la base
+     de l'appareil, la connexion, la préparation de la dictée. Entre eux, la
+     page restait blanche — le chargement des dossiers, la vérification de
+     session, l'intervalle entre la fermeture du portail et l'apparition de
+     l'interface. Sur un téléphone lent, chacun dure plusieurs secondes, et une
+     page blanche se lit comme une application cassée.
+
+     Le balisage ne décrit plus une attente précise : la liste d'étapes est
+     écrite par `js/chargement.js` à partir de ce que chaque sous-système
+     déclare entreprendre. -->
+<div id="chargement" class="chargement" role="status" aria-live="polite" hidden>
+  <div class="chargement-carte">
     <div class="portail-marque">
       <span class="marque-pastille"><svg class="ico"><use href="#ico-document"/></svg></span>
       <span class="marque-nom">Bilans éducatifs</span>
     </div>
 
-    <div id="ouverture-encours">
-      <h1>Préparation de l'application</h1>
-      <p id="ouverture-etape" class="preparation-etape">Ouverture de la base…</p>
-      <div class="preparation-jauge" role="progressbar" aria-labelledby="ouverture-etape">
-        <span id="ouverture-barre" class="preparation-barre preparation-barre-indeterminee"></span>
-      </div>
-      <p id="ouverture-premiere" class="preparation-note" hidden>
-        Première ouverture sur cet appareil : la base de données s'installe.
-        Comptez une trentaine de secondes. Les lancements suivants seront
-        immédiats, et fonctionneront sans réseau.
-      </p>
-    </div>
+    <h1 id="chargement-titre">Préparation de l'application</h1>
 
-    <div id="ouverture-echec" hidden>
-      <h1>La base de données n'a pas pu s'ouvrir</h1>
-      <p id="ouverture-echec-texte" class="preparation-etape"></p>
-      <p class="preparation-note">
-        Pour savoir ce qui manque sur cet appareil, ouvrez
-        <a href="/diagnostic.html">le diagnostic</a> et transmettez le rapport.
-      </p>
-      <button type="button" id="ouverture-reessayer" class="btn btn-primaire">
+    <div class="chargement-jauge" role="progressbar" aria-labelledby="chargement-titre"
+         aria-valuemin="0" aria-valuemax="100">
+      <span id="chargement-barre" class="chargement-barre chargement-barre-indeterminee"></span>
+    </div>
+    <p id="chargement-taille" class="chargement-taille"></p>
+
+    <!-- Remplie en JavaScript : une ligne par étape déclarée, son état et son
+         sous-libellé. -->
+    <ul id="chargement-etapes" class="chargement-etapes"></ul>
+
+    <div class="chargement-sorties">
+      <!-- Une étape bloquante en échec est la seule situation sans issue :
+           on propose alors la reprise, pas la poursuite. -->
+      <button type="button" id="chargement-reessayer" class="btn btn-primaire" hidden>
         Réessayer
       </button>
+      <!-- Sinon il y a toujours une sortie. Un poste sans accès à
+           huggingface.co doit rester capable de rédiger au clavier. -->
+      <button type="button" id="chargement-passer" class="btn btn-lien" hidden>
+        Continuer sans attendre
+      </button>
     </div>
+
+    <p id="chargement-aide" class="chargement-note" hidden>
+      Pour savoir ce qui manque sur cet appareil, ouvrez
+      <a href="/diagnostic.html">le diagnostic</a> et transmettez le rapport.
+    </p>
   </div>
 </div>
 
@@ -237,56 +256,6 @@
     <button type="button" id="installer-valider" class="btn btn-primaire" hidden>
       Installer
     </button>
-  </div>
-</div>
-
-<!-- Préparation de l'outil : ce qui devait se télécharger en cours de saisie se
-     télécharge ici, une bonne fois. L'écran ne paraît que si l'attente dépasse
-     quelques dixièmes de seconde, et il ne retient jamais personne de force. -->
-<div id="preparation" class="preparation" role="dialog" aria-modal="true"
-     aria-labelledby="preparation-titre" hidden>
-  <div class="preparation-carte">
-    <div class="portail-marque">
-      <span class="marque-pastille"><svg class="ico"><use href="#ico-document"/></svg></span>
-      <span class="marque-nom">Bilans éducatifs</span>
-    </div>
-
-    <div id="preparation-encours">
-      <h1 id="preparation-titre">Préparation de l'outil</h1>
-      <p id="preparation-etape" class="preparation-etape">
-        Mise en place du moteur de transcription…
-      </p>
-
-      <div class="preparation-jauge" role="progressbar"
-           aria-labelledby="preparation-etape"
-           aria-valuemin="0" aria-valuemax="100">
-        <span id="preparation-barre" class="preparation-barre"></span>
-      </div>
-      <p id="preparation-taille" class="preparation-taille"></p>
-
-      <p id="preparation-premiere" class="preparation-note" hidden>
-        Premier lancement sur ce poste : le modèle de dictée est téléchargé une
-        seule fois, puis conservé par le navigateur. Les lancements suivants
-        seront immédiats.
-      </p>
-
-      <button type="button" id="preparation-passer" class="btn btn-lien preparation-passer">
-        Continuer sans attendre
-      </button>
-    </div>
-
-    <div id="preparation-echec" hidden>
-      <h1>La dictée n'a pas pu être préparée</h1>
-      <p id="preparation-echec-texte" class="preparation-etape"></p>
-      <p class="preparation-note">
-        Le reste de l'outil fonctionne : vous pouvez écrire au clavier. Pour
-        savoir ce qui manque sur ce poste, ouvrez
-        <a href="/diagnostic.html" target="_blank" rel="noopener">le diagnostic</a>.
-      </p>
-      <button type="button" id="preparation-continuer" class="btn btn-primaire">
-        Continuer sans la dictée
-      </button>
-    </div>
   </div>
 </div>
 
@@ -690,6 +659,25 @@
   </header>
 
   <div class="tiroir-corps">
+    <!-- Apparence. Placée en tête : c'est le seul réglage qui ne dépend ni du
+         rôle ni de l'établissement, et le seul qu'un praticien seul puisse
+         avoir envie de changer un soir. -->
+    <section class="tiroir-section" data-section="apparence">
+      <h3>Apparence</h3>
+      <div class="segments" role="radiogroup" aria-label="Thème de l'interface">
+        <button type="button" class="segment" role="radio" data-theme-choix="systeme"
+                aria-checked="true">Système</button>
+        <button type="button" class="segment" role="radio" data-theme-choix="clair"
+                aria-checked="false">Clair</button>
+        <button type="button" class="segment" role="radio" data-theme-choix="sombre"
+                aria-checked="false">Sombre</button>
+      </div>
+      <p class="aide">
+        « Système » suit le réglage de l'appareil, et change avec lui au fil de
+        la journée.
+      </p>
+    </section>
+
     <section class="tiroir-section" data-section="compte">
       <h3>Compte</h3>
       <p id="compte-identite" class="compte-identite"></p>

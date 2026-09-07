@@ -17,6 +17,10 @@
  *  - un rapport copiable en un bouton, parce que la personne qui constate la
  *    panne n'est pas celle qui la corrigera.
  */
+// Le diagnostic s'ouvre sans être connecté, souvent depuis un lien
+// transmis : il doit respecter le thème retenu comme le reste de
+// l'application, sans quoi il paraît appartenir à un autre outil.
+import "./theme.js";
 
 const CONTROLES = [];
 const resultats = [];

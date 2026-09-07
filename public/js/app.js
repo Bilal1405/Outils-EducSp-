@@ -41,6 +41,11 @@ import { initParcours, ouvrirParcours, parcoursModifie } from "./parcours.js";
 import { initPilotage, ouvrirJournal, ouvrirTableauDeBord } from "./pilotage.js";
 import { ouvrirPortail } from "./portail.js";
 import { preparerOutil } from "./preparation.js";
+import { initChargement, reprendre, suivre, suspendre } from "./chargement.js";
+// Importé pour son effet : le thème retenu est posé sur la racine dès le
+// chargement du module, avant la première peinture. Posé plus tard, le
+// changement se verrait.
+import "./theme.js";
 import { ecarterInstallationPour, initInstallation } from "./pwa.js";
 
 // --- Vues et onglets ---
@@ -377,7 +382,7 @@ function sessionProbable() {
  * c'est le serveur qui refuse, et c'est la seule garantie qui vaille.
  */
 /**
- * Ouvre la base de l'appareil, à l'écran.
+ * Ouvre la base de l'appareil.
  *
  * La première ouverture télécharge PostgreSQL puis applique les treize
  * migrations : une trentaine de secondes sur un téléphone. Sans rien afficher,
@@ -385,11 +390,17 @@ function sessionProbable() {
  * une page blanche est une application cassée, quoi qu'elle fasse par-dessous.
  * C'est la première chose que voit un praticien qui installe l'outil.
  *
- * L'écran s'efface dès que la base répond, et ne reparaît plus : les
- * lancements suivants sont immédiats.
+ * L'attente est déclarée comme étape bloquante : rien de l'interface ne peut
+ * s'afficher sans base, et c'est la seule attente longue de l'application.
  */
 async function ouvrirBaseLocale() {
-  const ecran = $("ouverture");
+  // `immediat` : l'ouverture de PGlite compile son WebAssembly sur le fil
+  // principal et empêcherait une minuterie de se déclencher. L'écran doit
+  // être là avant, pas après.
+  const etape = suivre("base", "Base de données de l'appareil", {
+    bloquante: true,
+    immediat: true,
+  });
   const { ouvrirBase } = await import("./local/base.js");
 
   // Première fois sur cet appareil ? Le savoir change le message : trente
@@ -401,26 +412,27 @@ async function ouvrirBaseLocale() {
   } catch {
     /* Le navigateur ne le dit pas : on reste sur le message le plus prudent. */
   }
-
-  $("ouverture-premiere").hidden = !premiere;
-  ecran.hidden = false;
+  if (premiere) {
+    etape.dire("Première installation sur cet appareil, comptez une trentaine de secondes…");
+  }
 
   try {
-    await ouvrirBase((etape) => {
-      $("ouverture-etape").textContent = etape;
-    });
-    ecran.hidden = true;
+    await ouvrirBase((detail) => etape.dire(detail));
+    etape.reussir();
     return true;
   } catch (err) {
-    $("ouverture-encours").hidden = true;
-    $("ouverture-echec").hidden = false;
-    $("ouverture-echec-texte").textContent = err.message;
-    $("ouverture-reessayer").addEventListener("click", () => location.reload());
+    etape.echouer(err.message, { reessayer: () => location.reload() });
     return false;
   }
 }
 
 async function amorcer() {
+  initChargement();
+  // Une première étape déjà cochée, plutôt qu'un écran vide : elle est vraie —
+  // les modules sont chargés, c'est ce qui vient de se produire — et elle donne
+  // à l'écran quelque chose à montrer dès sa première image.
+  suivre("interface", "Interface").reussir();
+
   // Marqué sur la racine plutôt que passé de module en module : la feuille de
   // style en a besoin pour retirer ce qui ne veut rien dire chez un praticien
   // seul — le vocabulaire d'établissement, les étapes de mise en route déjà
@@ -438,6 +450,12 @@ async function amorcer() {
     if (!(await ouvrirBaseLocale())) return;
   }
 
+  // Le chargement des dossiers, la vérification de session et l'intervalle qui
+  // suit la connexion étaient trois moments sans le moindre écran : la page y
+  // restait blanche, plusieurs secondes sur un téléphone lent. Ils comptent
+  // désormais pour une étape, comme le reste.
+  const dossiers = suivre("donnees", "Vos dossiers", { bloquante: true });
+
   let donnees = null;
   if (sessionProbable()) {
     try {
@@ -446,6 +464,7 @@ async function amorcer() {
       // 401 : la session a été fermée entre-temps. L'écran de connexion prend
       // le relais, sans que l'incident ait besoin d'être annoncé.
       if (err.statut !== 401) {
+        dossiers.echouer(err.message, { reessayer: () => location.reload() });
         signalerPanne(err);
         return;
       }
@@ -457,24 +476,35 @@ async function amorcer() {
     try {
       etatAuth = await api.etatAuth();
     } catch (err) {
+      dossiers.echouer(err.message, { reessayer: () => location.reload() });
       signalerPanne(err);
       return;
     }
 
-    etat.utilisateur =
-      etatAuth.utilisateur ||
-      (await ouvrirPortail({
+    if (etatAuth.utilisateur) {
+      etat.utilisateur = etatAuth.utilisateur;
+    } else {
+      // Le portail attend une saisie, parfois longuement : deux écrans
+      // superposés n'auraient aucun sens. Les étapes déjà cochées le restent,
+      // et l'écran reprend là où il en était une fois la session ouverte.
+      suspendre();
+      etat.utilisateur = await ouvrirPortail({
         initialise: etatAuth.initialise,
         etablissementExistant: etatAuth.etablissement_existant,
-      }));
+      });
+      reprendre();
+    }
 
     try {
       donnees = await lancerAmorcage();
     } catch (err) {
+      dossiers.echouer(err.message, { reessayer: () => location.reload() });
       signalerPanne(err);
       return;
     }
   }
+
+  dossiers.reussir();
 
   // L'application n'est révélée qu'une fois la session établie. La masquer
   // seulement à l'écran ne suffirait pas : elle resterait dans l'ordre de

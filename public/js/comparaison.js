@@ -16,6 +16,9 @@
  * reste vrai ici : les deux transcriptions tournent dans cet onglet, rien
  * n'est envoyé au serveur, rien n'est écrit sur disque.
  */
+// Même thème que le reste de l'application : cette page se lit à côté
+// de l'outil, pas à sa place.
+import "./theme.js";
 import {
   BIBLIOTHEQUE,
   MODELE,

@@ -61,8 +61,12 @@ que des compétences qu'il n'a pas observées. Il n'intervient que pour remettre
 propre un commentaire dicté (`/api/assistance/reformulation`), sans rien ajouter.
 
 Contrainte d'écran : une étape de parcours guidé doit tenir dans 1366×768 sans
-défilement. Vérifiée par mesure en navigateur ; `test/modelesBilan.test.ts` borde
-le nombre de lignes de grille par étape. Scinder l'étape et remesurer si dépassé.
+défilement. Vérifiée par mesure en navigateur — les trente étapes des deux
+trames, `scrollHeight` contre `clientHeight` — et `test/modelesBilan.test.ts`
+borde le nombre de lignes de grille par étape. Scinder l'étape et remesurer si
+dépassé. Deux étapes débordaient de neuf et vingt-six pixels ; la marge a été
+reprise dans les interlignes du parcours et l'interligne des grilles à deux
+colonnes, sans toucher au contenu des trames.
 
 Démarrage : l'interface ouvre par **un seul** aller-retour utile,
 `GET /api/amorcage` (établissement, quota, équipe, bénéficiaires), lancé en
@@ -118,14 +122,48 @@ cent quarante mégaoctets sur une connexion mesurée ne s'engagent pas sans
 qu'on les demande. Le modèle est chargé au premier usage du micro.
 
 Ce que la dictée doit télécharger — bibliothèque, moteur WebAssembly, poids du
-modèle — l'est par l'écran de préparation (`public/js/preparation.js`), juste
-après la connexion, pas au premier clic sur le micro. L'attente tombait sinon
-après avoir parlé, et se répétait à chaque onglet pour l'instanciation du
-graphe. L'écran ne paraît qu'au-delà de 400 ms — invisible dès le deuxième
-lancement — totalise les fichiers en un seul chiffre, et ne retient jamais
-personne : « Continuer sans attendre » poursuit en fond, un échec propose
-d'écrire au clavier. Ne pas le rendre bloquant : un poste sans accès à
-huggingface.co doit rester capable de rédiger.
+modèle — l'est par `public/js/preparation.js`, juste après la connexion, pas au
+premier clic sur le micro. L'attente tombait sinon après avoir parlé, et se
+répétait à chaque onglet pour l'instanciation du graphe. Ne jamais la rendre
+bloquante : un poste sans accès à huggingface.co doit rester capable de rédiger.
+
+Un seul écran de chargement, `public/js/chargement.js`. Il y en avait trois qui
+ne se connaissaient pas — base de l'appareil, connexion, dictée — et entre eux
+trois moments de page blanche : le chargement des dossiers, la vérification de
+session, l'intervalle entre la fermeture du portail et l'apparition de
+l'interface. Le remplacement n'est pas un quatrième écran écrit à l'avance mais
+un **modèle d'étapes** : chaque sous-système déclare ce qu'il entreprend
+(`suivre(id, libellé, { bloquante, immediat })`) et rend compte de son
+avancement ; l'écran se dessine à partir de là et se retire seul. Quatre étapes
+aujourd'hui — interface, base, dossiers, dictée. Trois règles à ne pas défaire :
+
+- **rien sous 400 ms**, sinon un deuxième lancement produit un clignotement ;
+- **sauf `immediat`**, réservé à ce qui monopolise le fil principal. Mesuré :
+  la minuterie armée avant l'ouverture de PGlite ne se déclenchait qu'à 3,1 s,
+  le temps que trois mégaoctets de WebAssembly se compilent — trois secondes de
+  page vide. Ramené à 343 ms ;
+- **jamais d'impasse** : dès qu'aucune étape bloquante n'est en cours, une
+  sortie est offerte. Un échec bloquant, lui, propose une reprise et le
+  diagnostic, jamais « continuer ».
+
+L'écran se suspend pendant la connexion (`suspendre()` / `reprendre()`) : les
+deux ne se superposent jamais. `test/chargement.test.ts` borde le modèle sur un
+faux DOM minimal — le projet n'embarque pas de bibliothèque de DOM et n'a pas à
+en ajouter une pour ça.
+
+Apparence : jetons dans `public/style.css`, thème clair et thème sombre. Le
+parti pris précédent — une seule apparence claire, pour la lisibilité d'un écran
+vidéoprojeté — datait d'avant l'application installée sur un téléphone. Le thème
+suit `prefers-color-scheme` ; les réglages permettent de le fixer
+(`public/js/theme.js`, `localStorage`, la seule chose que ce projet y dépose —
+une préférence d'apparence n'est pas une donnée de santé). La palette sombre est
+écrite **deux fois**, une par chemin (media query et attribut), faute de pouvoir
+faire autrement en CSS sans `light-dark()` : `test/theme.test.ts` refuse qu'elles
+divergent, refuse une couleur écrite en dur hors des blocs de jetons — elle ne
+basculerait pas — et refuse un jeton déclaré deux fois. Contrastes mesurés en
+navigateur, AA atteint dans les deux thèmes sur l'accueil, la fiche et les
+réglages. La barre d'état d'Android porte deux `theme-color`, réalignées par
+JavaScript quand le thème est forcé.
 
 Les fichiers de `public/` passent par `src/middleware/statique.ts` : brotli ou
 gzip selon le navigateur, mémorisé en RAM, `ETag` sur le contenu servi. Tout est

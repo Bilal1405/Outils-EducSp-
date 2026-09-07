@@ -1,9 +1,22 @@
 /**
  * Feuille de style unique de l'application.
  *
- * Parti pris : une seule apparence, claire et chaude. L'outil s'utilise en
- * journée, souvent en entretien ou en réunion, parfois vidéoprojeté ; un thème
- * qui change d'un poste à l'autre nuit à la lisibilité partagée.
+ * Parti pris : chaude et sobre. La terre cuite sur fond crème est l'identité de
+ * l'outil ; ce qui a été modernisé, ce sont les formes — moins de traits, moins
+ * d'ombres, des rayons plus francs, un rythme vertical réglé sur une échelle
+ * d'espacements plutôt que sur des valeurs écrites une à une.
+ *
+ * Deux apparences depuis la refonte. Le parti pris précédent — une seule, claire
+ * — visait la lisibilité partagée d'un écran vidéoprojeté en réunion ; il datait
+ * d'avant l'application installée sur un téléphone, où l'outil sert le soir, en
+ * service, à côté d'applications qui suivent toutes le réglage du système. Le
+ * thème suit donc `prefers-color-scheme`, et les réglages permettent de le
+ * fixer. Le clair reste le défaut sur un poste sans préférence exprimée.
+ *
+ * Règle absolue pour le thème sombre : **aucune couleur ne doit avoir sa seule
+ * définition dans un bloc conditionnel.** Un jeton présent dans `:root` mais
+ * oublié dans les deux blocs sombres produit une zone illisible qui ne se voit
+ * qu'en basculant. `test/theme.test.ts` compare les trois listes.
  *
  * Organisation : jetons → primitives → mise en page → composants → adaptatif.
  */
@@ -13,49 +26,110 @@
    ======================================================================== */
 
 :root {
-  color-scheme: light;
+  /* `light dark` fait suivre au navigateur les contrôles natifs, les barres de
+     défilement et le fond par défaut. Les deux valeurs figées plus bas ne
+     changent que ce que l'on dessine nous-mêmes. */
+  color-scheme: light dark;
 
-  /* Fonds, du plus profond au plus clair. */
+  /* Trois plans, et c'est par eux que se lit la structure : le chrome
+     (en-tête et colonne des bénéficiaires), le canevas de travail, les cartes
+     posées dessus. Nommés à part de `--fond` parce que leur ordre s'inverse
+     entre les deux thèmes — en clair le chrome est plus sourd que le canevas,
+     en sombre il est plus profond. */
+  --chrome: #f2eae0;
+  --canevas: #faf5ef;
+
+  /* Fonds, du plus profond au plus clair. `--fond` sert aux écrans qui
+     occupent toute la fenêtre : chargement, connexion. */
   --fond: #faf5ef;
-  --fond-creux: #f3e9dd;
+  --fond-creux: #f2eae0;
   --surface: #fffdfa;
-  --surface-relief: #fffefc;
+  --surface-relief: #ffffff;
 
-  /* Texte. */
-  --texte: #382d25;
-  --texte-doux: #6f5f52;
-  --texte-tenu: #9a8878;
+  /* Réactions de surface : c'est par elles que se séparent les zones, plutôt
+     que par un trait d'un pixel. */
+  --survol: rgba(88, 60, 38, 0.05);
+  --actif: rgba(171, 80, 41, 0.1);
+  --voile: rgba(45, 34, 25, 0.38);
 
-  /* Traits. */
-  --trait: #eaddcd;
-  --trait-fort: #dcc9b3;
+  /* Texte. `--texte-tenu` sert aux mentions en petit corps : il doit tenir le
+     rapport de contraste de 4,5:1, ce que l'ancienne valeur ne faisait pas. */
+  --texte: #2e251c;
+  --texte-doux: #5f5044;
+  --texte-tenu: #776553;
+
+  /* Traits. Il en reste peu : bordures de champs, séparateurs de sections. */
+  --trait: #ece1d4;
+  --trait-fort: #dbc9b4;
 
   /* Couleur d'action : terre cuite. Assez saturée pour porter un bouton
      principal, assez sourde pour ne pas fatiguer sur une journée. */
-  --action: #b85c34;
-  --action-survol: #9c4a27;
+  --action: #ab5029;
+  --action-survol: #8e4020;
   --action-tenue: #fbeee6;
   --action-trait: #edd3c1;
+  --sur-action: #fffdfa;
+  /* Chevron du <select>, dessiné en fond : sa couleur ne peut pas hériter,
+     il lui faut donc un jeton par thème. */
+  --chevron-select: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235f5044' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m8 10 4 4 4-4'/%3E%3C/svg%3E");
 
   /* États. */
-  --succes: #5c7d45;
+  --succes: #4f6f3a;
   --succes-tenu: #eef3e7;
-  --alerte: #b03d27;
+  --succes-trait: #d5e2c8;
+  --alerte: #a83722;
   --alerte-tenue: #fbe9e4;
-  --attention: #9a6a15;
+  --alerte-trait: #f0c9bd;
+  --alerte-halo: rgba(168, 55, 34, 0.35);
+  --attention: #8a5d10;
   --attention-tenue: #fbf1dd;
+  --attention-trait: #ecd9ae;
+  /* Texte posé sur un aplat d'état (bouton d'enregistrement, puce d'étape
+     faite). Distinct de `--sur-action` : en sombre, ces aplats s'éclaircissent
+     et réclament un texte foncé. */
+  --sur-etat: #fffdfa;
 
-  /* Élévation : ombres teintées chaud, jamais grises. */
-  --ombre-1: 0 1px 2px rgba(88, 60, 38, 0.06);
-  --ombre-2: 0 1px 2px rgba(88, 60, 38, 0.05), 0 4px 12px rgba(88, 60, 38, 0.06);
-  --ombre-3: 0 2px 4px rgba(88, 60, 38, 0.06), 0 12px 32px rgba(88, 60, 38, 0.12);
+  /* Élévation. Nettement adoucie : une carte se distingue par sa surface, pas
+     par son ombre portée. */
+  --ombre-1: 0 1px 2px rgba(70, 48, 30, 0.05);
+  --ombre-2: 0 1px 3px rgba(70, 48, 30, 0.05), 0 6px 16px rgba(70, 48, 30, 0.05);
+  --ombre-3: 0 4px 12px rgba(70, 48, 30, 0.08), 0 16px 40px rgba(70, 48, 30, 0.12);
 
   /* Rayons. */
   --r-xs: 6px;
-  --r-sm: 8px;
-  --r-md: 11px;
+  --r-sm: 9px;
+  --r-md: 12px;
   --r-lg: 16px;
+  --r-xl: 22px;
   --r-pilule: 999px;
+
+  /* Espacements. Ils n'existaient pas : chaque marge était écrite en `rem` à
+     l'endroit où elle servait, et rien ne tenait le rythme d'un écran à
+     l'autre. */
+  --e-1: 0.25rem;
+  --e-2: 0.5rem;
+  --e-3: 0.75rem;
+  --e-4: 1rem;
+  --e-5: 1.5rem;
+  --e-6: 2rem;
+  --e-7: 2.5rem;
+  --e-8: 3rem;
+
+  /* Graisses, jusqu'ici écrites littéralement une centaine de fois. */
+  --g-normal: 400;
+  --g-moyen: 550;
+  --g-fort: 650;
+
+  /* Profondeurs. En dur auparavant, ce qui rendait impossible de savoir d'un
+     coup d'œil ce qui passe au-dessus de quoi. */
+  --z-entete: 20;
+  --z-voile: 30;
+  --z-barre: 40;
+  --z-toasts: 100;
+  --z-portail: 200;
+  --z-bandeau: 205;
+  --z-chargement: 210;
+  --z-alerte: 220;
 
   /* Échelle typographique. 15 px de base : la densité d'un outil de travail,
      pas celle d'une page de contenu. */
@@ -75,7 +149,112 @@
   --hauteur-entete: 60px;
 
   --transition: 140ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-lente: 220ms cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* Palette sombre. Les mêmes jetons, chauds eux aussi : un gris neutre à côté
+   d'une terre cuite tourne au verdâtre.
+
+   Deux blocs identiques, et il n'y a pas moyen de faire autrement en CSS sans
+   `light-dark()` — que les navigateurs anciens ne comprennent pas, et qui
+   laisserait alors l'interface entièrement sans couleurs. Le premier suit le
+   système, le second obéit au choix explicite des réglages. `test/theme.test.ts`
+   refuse qu'ils divergent. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="clair"]) {
+    --chrome: #151210;
+    --canevas: #1e1a16;
+
+    --fond: #1e1a16;
+    --fond-creux: #2f2924;
+    --surface: #272220;
+    --surface-relief: #322b26;
+
+    --survol: rgba(255, 240, 224, 0.055);
+    --actif: rgba(224, 122, 79, 0.16);
+    --voile: rgba(0, 0, 0, 0.55);
+
+    --texte: #f2e9df;
+    --texte-doux: #c2b3a4;
+    --texte-tenu: #a3958a;
+
+    --trait: #332d27;
+    --trait-fort: #4a4139;
+
+    --action: #e07a4f;
+    --action-survol: #ea8c62;
+    --action-tenue: #38251c;
+    --action-trait: #4d3327;
+    --sur-action: #151210;
+    --chevron-select: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c2b3a4' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m8 10 4 4 4-4'/%3E%3C/svg%3E");
+
+    --succes: #8fbb6c;
+    --succes-tenu: #23301c;
+    --succes-trait: #35472a;
+    --alerte: #f08a72;
+    --alerte-tenue: #3a211c;
+    --alerte-trait: #54302a;
+    --alerte-halo: rgba(240, 138, 114, 0.35);
+    --attention: #d9a94a;
+    --attention-tenue: #34290f;
+    --attention-trait: #4c3c17;
+    --sur-etat: #151210;
+
+    --ombre-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --ombre-2: 0 2px 6px rgba(0, 0, 0, 0.4);
+    --ombre-3: 0 8px 32px rgba(0, 0, 0, 0.55);
+  }
+}
+
+:root[data-theme="sombre"] {
+  --chrome: #151210;
+  --canevas: #1e1a16;
+
+  --fond: #1e1a16;
+  --fond-creux: #2f2924;
+  --surface: #272220;
+  --surface-relief: #322b26;
+
+  --survol: rgba(255, 240, 224, 0.055);
+  --actif: rgba(224, 122, 79, 0.16);
+  --voile: rgba(0, 0, 0, 0.55);
+
+  --texte: #f2e9df;
+  --texte-doux: #c2b3a4;
+  --texte-tenu: #a3958a;
+
+  --trait: #332d27;
+  --trait-fort: #4a4139;
+
+  --action: #e07a4f;
+  --action-survol: #ea8c62;
+  --action-tenue: #38251c;
+  --action-trait: #4d3327;
+  --sur-action: #151210;
+  --chevron-select: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c2b3a4' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m8 10 4 4 4-4'/%3E%3C/svg%3E");
+
+  --succes: #8fbb6c;
+  --succes-tenu: #23301c;
+  --succes-trait: #35472a;
+  --alerte: #f08a72;
+  --alerte-tenue: #3a211c;
+  --alerte-trait: #54302a;
+  --alerte-halo: rgba(240, 138, 114, 0.35);
+  --attention: #d9a94a;
+  --attention-tenue: #34290f;
+  --attention-trait: #4c3c17;
+  --sur-etat: #151210;
+
+  --ombre-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --ombre-2: 0 2px 6px rgba(0, 0, 0, 0.4);
+  --ombre-3: 0 8px 32px rgba(0, 0, 0, 0.55);
+}
+
+/* Le choix explicite fige aussi ce que le navigateur dessine lui-même :
+   sélecteurs de date, barres de défilement, autocomplétion. Sans cela, un thème
+   sombre choisi à la main garderait un calendrier blanc. */
+:root[data-theme="clair"] { color-scheme: light; }
+:root[data-theme="sombre"] { color-scheme: dark; }
 
 /* ========================================================================
    2. Primitives
@@ -105,15 +284,17 @@ body {
   font-size: var(--t-base);
   line-height: 1.55;
   color: var(--texte);
-  background: var(--fond);
+  background: var(--chrome);
   -webkit-font-smoothing: antialiased;
 }
 
 h1, h2, h3 {
   margin: 0;
-  line-height: 1.3;
-  font-weight: 650;
-  letter-spacing: -0.011em;
+  line-height: 1.25;
+  font-weight: var(--g-fort);
+  /* Un peu plus serré qu'avant : c'est ce qui donne aux titres l'assise des
+     interfaces auxquelles celle-ci se compare. */
+  letter-spacing: -0.018em;
 }
 
 h1 { font-size: var(--t-xl); }
@@ -121,6 +302,20 @@ h2 { font-size: var(--t-md); }
 h3 { font-size: var(--t-base); }
 
 p { margin: 0; }
+
+/* Sans cette règle les liens gardaient le bleu du navigateur — passable sur
+   fond crème, illisible sur fond sombre, et étranger à la palette dans les
+   deux cas. */
+a {
+  color: var(--action);
+  text-decoration-color: var(--action-trait);
+  text-underline-offset: 0.15em;
+}
+
+a:hover {
+  color: var(--action-survol);
+  text-decoration-color: currentColor;
+}
 
 /* Le jeu d'icônes ne doit rien occuper mais rester « rendu » : certains
    navigateurs ne résolvent pas <use> vers un arbre en display:none. */
@@ -171,23 +366,28 @@ select,
 textarea {
   width: 100%;
   min-width: 0;
-  padding: 0.5rem 0.7rem;
-  background: var(--surface);
-  border: 1px solid var(--trait-fort);
+  padding: 0.55rem 0.75rem;
+  /* Rempli plutôt que cerné : un contour d'un pixel par champ hachait l'écran
+     de la fiche, qui en compte une vingtaine. Le fond suffit à dire où l'on
+     écrit, et le trait ne sert plus qu'à porter le focus. */
+  background: var(--fond-creux);
+  border: 1px solid transparent;
   border-radius: var(--r-sm);
-  transition: border-color var(--transition), box-shadow var(--transition);
+  transition: background var(--transition), border-color var(--transition),
+    box-shadow var(--transition);
 }
 
 input:hover:not(:disabled),
 select:hover:not(:disabled),
 textarea:hover:not(:disabled) {
-  border-color: var(--texte-tenu);
+  border-color: var(--trait-fort);
 }
 
 input:focus,
 select:focus,
 textarea:focus {
   outline: none;
+  background: var(--surface);
   border-color: var(--action);
   box-shadow: 0 0 0 3px var(--action-tenue);
 }
@@ -195,7 +395,8 @@ textarea:focus {
 input:disabled,
 select:disabled,
 textarea:disabled {
-  background: var(--fond-creux);
+  background: transparent;
+  border-color: var(--trait);
   color: var(--texte-tenu);
   cursor: not-allowed;
 }
@@ -210,7 +411,7 @@ select {
   padding-right: 2.2rem;
   cursor: pointer;
   /* Chevron dessiné en fond : pas de dépendance à un jeu d'icônes distant. */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236f5f52' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m8 10 4 4 4-4'/%3E%3C/svg%3E");
+  background-image: var(--chevron-select);
   background-repeat: no-repeat;
   background-position: right 0.6rem center;
   background-size: 1.05rem;
@@ -224,13 +425,13 @@ textarea {
 .champ {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: var(--e-1);
   min-width: 0;
 }
 
 .champ-label {
   font-size: var(--t-sm);
-  font-weight: 550;
+  font-weight: var(--g-moyen);
   color: var(--texte-doux);
 }
 
@@ -260,11 +461,13 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
-  padding: 0.5rem 0.95rem;
+  padding: 0.5rem 1.05rem;
   border: 1px solid transparent;
-  border-radius: var(--r-sm);
+  /* En pilule : c'est ce qui distingue le plus une commande d'aujourd'hui d'un
+     bouton de formulaire d'hier, et cela se voit surtout au pouce. */
+  border-radius: var(--r-pilule);
   font-size: var(--t-base);
-  font-weight: 550;
+  font-weight: var(--g-moyen);
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
@@ -285,8 +488,7 @@ textarea {
 .btn-primaire {
   background: var(--action);
   border-color: var(--action);
-  color: #fffdfa;
-  box-shadow: var(--ombre-1);
+  color: var(--sur-action);
 }
 
 .btn-primaire:hover:not(:disabled) {
@@ -295,15 +497,17 @@ textarea {
 }
 
 .btn-secondaire {
-  background: var(--surface);
+  background: transparent;
   border-color: var(--trait-fort);
   color: var(--texte);
 }
 
+/* Le survol se joue sur le fond, pas sur la couleur du texte : un libellé qui
+   change de teinte au passage de la souris se lit comme un lien, et invite à
+   chercher une page qui n'existe pas. */
 .btn-secondaire:hover:not(:disabled) {
-  background: var(--action-tenue);
-  border-color: var(--action-trait);
-  color: var(--action-survol);
+  background: var(--survol);
+  border-color: var(--texte-tenu);
 }
 
 .btn-danger:hover:not(:disabled) {
@@ -320,19 +524,19 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  width: 2.25rem;
+  height: 2.25rem;
   padding: 0;
   background: transparent;
   border: none;
-  border-radius: var(--r-xs);
+  border-radius: var(--r-pilule);
   color: var(--texte-doux);
   cursor: pointer;
   transition: background-color var(--transition), color var(--transition);
 }
 
 .btn-icone:hover {
-  background: var(--fond-creux);
+  background: var(--survol);
   color: var(--texte);
 }
 
@@ -358,7 +562,7 @@ details > summary {
   padding: 0.3rem 0;
   color: var(--action);
   font-size: var(--t-sm);
-  font-weight: 550;
+  font-weight: var(--g-moyen);
   list-style-position: outside;
 }
 
@@ -386,12 +590,12 @@ details[open] > summary {
 
 .statut.erreur {
   color: var(--alerte);
-  font-weight: 550;
+  font-weight: var(--g-moyen);
 }
 
 .statut.ok {
   color: var(--succes);
-  font-weight: 550;
+  font-weight: var(--g-moyen);
 }
 
 .compteur {
@@ -405,29 +609,37 @@ details[open] > summary {
    ======================================================================== */
 
 .app-alerte {
+  /* Positionné pour porter une profondeur : sans cela, une panne signalée
+     après l'ouverture du portail restait cachée derrière lui — c'est-à-dire
+     exactement quand elle comptait. */
+  position: relative;
+  z-index: var(--z-alerte);
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
   padding: 0.6rem 1rem;
   background: var(--alerte-tenue);
-  border-bottom: 1px solid #f0c9bd;
-  color: #85301e;
+  border-bottom: 1px solid var(--alerte-trait);
+  color: var(--alerte);
   font-size: var(--t-sm);
-  font-weight: 550;
+  font-weight: var(--g-moyen);
   text-align: center;
 }
 
+/* En-tête et colonne des bénéficiaires ne portent plus de fond ni de trait à
+   eux : ils reposent sur le chrome, et c'est le canevas de travail qui se
+   détache, posé dessus comme une feuille. Un trait d'un pixel de moins à
+   chaque frontière, et la structure se lit mieux qu'avant. */
 .entete {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--e-3);
   height: var(--hauteur-entete);
   flex: none;
-  padding: 0 1rem;
-  background: var(--surface);
-  border-bottom: 1px solid var(--trait);
-  z-index: 20;
+  padding: 0 var(--e-3);
+  background: transparent;
+  z-index: var(--z-entete);
 }
 
 .entete-menu {
@@ -449,12 +661,12 @@ details[open] > summary {
   height: 1.85rem;
   border-radius: var(--r-sm);
   background: var(--action);
-  color: #fffdfa;
+  color: var(--sur-action);
   font-size: var(--t-base);
 }
 
 .marque-nom {
-  font-weight: 650;
+  font-weight: var(--g-fort);
   letter-spacing: -0.015em;
 }
 
@@ -499,9 +711,9 @@ details[open] > summary {
 }
 
 .quota.quota-bas .quota-jauge-barre { background: var(--attention); }
-.quota.quota-bas .quota-texte { color: var(--attention); font-weight: 550; }
+.quota.quota-bas .quota-texte { color: var(--attention); font-weight: var(--g-moyen); }
 .quota.quota-epuise .quota-jauge-barre { background: var(--alerte); }
-.quota.quota-epuise .quota-texte { color: var(--alerte); font-weight: 600; }
+.quota.quota-epuise .quota-texte { color: var(--alerte); font-weight: var(--g-moyen); }
 
 .identite {
   display: flex;
@@ -533,7 +745,7 @@ details[open] > summary {
   border: 1px solid var(--action-trait);
   color: var(--action-survol);
   font-size: var(--t-sm);
-  font-weight: 650;
+  font-weight: var(--g-fort);
 }
 
 .identite-textes {
@@ -545,7 +757,7 @@ details[open] > summary {
 
 .identite-nom {
   font-size: var(--t-sm);
-  font-weight: 600;
+  font-weight: var(--g-moyen);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -576,16 +788,14 @@ details[open] > summary {
   flex-direction: column;
   width: var(--largeur-barre);
   flex: none;
-  background: var(--fond-creux);
-  border-right: 1px solid var(--trait);
+  background: transparent;
 }
 
 .barre-entete {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  padding: 0.85rem;
-  border-bottom: 1px solid var(--trait);
+  gap: var(--e-2);
+  padding: 0 var(--e-3) var(--e-3);
 }
 
 .champ-recherche {
@@ -603,7 +813,7 @@ details[open] > summary {
 
 .champ-recherche input {
   padding-left: 2.1rem;
-  background: var(--surface);
+  border-radius: var(--r-pilule);
 }
 
 .champ-recherche input::-webkit-search-cancel-button {
@@ -626,19 +836,21 @@ details[open] > summary {
   margin-bottom: 2px;
   background: transparent;
   border: none;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   text-align: left;
   cursor: pointer;
   transition: background-color var(--transition);
 }
 
 .beneficiaire:hover {
-  background: var(--surface);
+  background: var(--survol);
 }
 
+/* L'entrée courante se marque par un aplat, non par un liseré : sur une
+   colonne sans bordure, un trait de deux pixels au bord gauche flottait dans
+   le vide. */
 .beneficiaire.actif {
-  background: var(--surface);
-  box-shadow: inset 2px 0 0 var(--action), var(--ombre-1);
+  background: var(--actif);
 }
 
 .beneficiaire-initiales {
@@ -651,12 +863,12 @@ details[open] > summary {
   background: var(--action-tenue);
   color: var(--action-survol);
   font-size: var(--t-xs);
-  font-weight: 650;
+  font-weight: var(--g-fort);
 }
 
 .beneficiaire.actif .beneficiaire-initiales {
   background: var(--action);
-  color: #fffdfa;
+  color: var(--sur-action);
 }
 
 .beneficiaire-textes {
@@ -667,7 +879,7 @@ details[open] > summary {
 }
 
 .beneficiaire-nom {
-  font-weight: 550;
+  font-weight: var(--g-moyen);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -691,11 +903,16 @@ details[open] > summary {
 
 /* --- Zone de travail --- */
 
+/* Le canevas : posé sur le chrome, coin supérieur gauche arrondi. C'est lui
+   qui donne à l'écran sa forme, à la place des traits qui séparaient
+   auparavant l'en-tête et la colonne. */
 .zone-travail {
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  padding: 1.75rem 2rem 4rem;
+  padding: var(--e-6) var(--e-6) var(--e-8);
+  background: var(--canevas);
+  border-top-left-radius: var(--r-xl);
 }
 
 .vue {
@@ -713,7 +930,7 @@ details[open] > summary {
 
 .accueil-surtitre {
   font-size: var(--t-xs);
-  font-weight: 650;
+  font-weight: var(--g-fort);
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--action);
@@ -744,7 +961,7 @@ details[open] > summary {
   gap: 1rem;
   padding: 1.15rem 1.35rem;
   background: var(--surface);
-  border: 1px solid var(--trait);
+  border: 1px solid transparent;
   border-radius: var(--r-lg);
   box-shadow: var(--ombre-1);
   transition: border-color var(--transition), background-color var(--transition);
@@ -761,7 +978,7 @@ details[open] > summary {
   background: var(--fond-creux);
   color: var(--texte-doux);
   font-size: var(--t-sm);
-  font-weight: 650;
+  font-weight: var(--g-fort);
 }
 
 .etape-puce > * {
@@ -790,12 +1007,12 @@ details[open] > summary {
 
 .etape.faite {
   background: var(--succes-tenu);
-  border-color: #d5e2c8;
+  border-color: var(--succes-trait);
 }
 
 .etape.faite .etape-puce {
   background: var(--succes);
-  color: #fff;
+  color: var(--sur-etat);
 }
 
 .etape.faite .etape-numero { display: none; }
@@ -849,27 +1066,41 @@ details[open] > summary {
   margin-top: 0.15rem;
 }
 
+/* Contrôle segmenté. Le soulignement précédent tenait à un trait de deux
+   pixels posé sur une bordure d'un pixel : au doigt, sur un écran de
+   téléphone, il fallait viser une cible dont rien n'indiquait l'étendue. Le
+   segment, lui, montre sa surface. */
 .onglets {
-  display: flex;
-  gap: 0.25rem;
-  border-bottom: 1px solid var(--trait);
-  margin-bottom: 1.35rem;
+  display: inline-flex;
+  align-self: flex-start;
+  gap: var(--e-1);
+  padding: var(--e-1);
+  margin-bottom: var(--e-5);
+  background: var(--fond-creux);
+  border-radius: var(--r-pilule);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.onglets::-webkit-scrollbar {
+  display: none;
 }
 
 .onglet {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.55rem 0.85rem;
-  margin-bottom: -1px;
+  padding: 0.45rem 0.9rem;
   background: none;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-radius: var(--r-pilule);
   color: var(--texte-doux);
   font-size: var(--t-base);
-  font-weight: 550;
+  font-weight: var(--g-moyen);
+  white-space: nowrap;
   cursor: pointer;
-  transition: color var(--transition), border-color var(--transition);
+  transition: background-color var(--transition), color var(--transition);
 }
 
 .onglet:hover {
@@ -877,8 +1108,9 @@ details[open] > summary {
 }
 
 .onglet[aria-selected="true"] {
-  color: var(--action);
-  border-bottom-color: var(--action);
+  background: var(--surface);
+  color: var(--texte);
+  box-shadow: var(--ombre-1);
 }
 
 .pastille {
@@ -888,10 +1120,10 @@ details[open] > summary {
   height: 1.25rem;
   padding: 0 0.35rem;
   border-radius: var(--r-pilule);
-  background: var(--fond-creux);
+  background: var(--survol);
   color: var(--texte-doux);
   font-size: var(--t-xs);
-  font-weight: 650;
+  font-weight: var(--g-fort);
   font-variant-numeric: tabular-nums;
 }
 
@@ -906,10 +1138,13 @@ details[open] > summary {
   gap: 1rem;
 }
 
+/* La carte se distingue par sa surface, non par son contour. Sur l'onglet de
+   rédaction il y en a quatre l'une sous l'autre : quatre rectangles cernés
+   d'un trait faisaient un formulaire administratif. */
 .carte {
-  padding: 1.25rem 1.4rem;
+  padding: var(--e-5);
   background: var(--surface);
-  border: 1px solid var(--trait);
+  border: 1px solid transparent;
   border-radius: var(--r-lg);
   box-shadow: var(--ombre-1);
 }
@@ -924,7 +1159,7 @@ details[open] > summary {
 
 .carte-titre {
   font-size: var(--t-base);
-  font-weight: 650;
+  font-weight: var(--g-fort);
 }
 
 .carte > .carte-titre {
@@ -942,8 +1177,8 @@ details[open] > summary {
 
 .puce {
   padding: 0.3rem 0.75rem;
-  background: var(--fond);
-  border: 1px solid var(--trait);
+  background: var(--fond-creux);
+  border: 1px solid transparent;
   border-radius: var(--r-pilule);
   font-size: var(--t-sm);
   color: var(--texte-doux);
@@ -964,8 +1199,8 @@ details[open] > summary {
 .puce.active {
   background: var(--action);
   border-color: var(--action);
-  color: #fffdfa;
-  font-weight: 550;
+  color: var(--sur-action);
+  font-weight: var(--g-moyen);
 }
 
 .periode-champs {
@@ -1011,18 +1246,18 @@ details[open] > summary {
 .btn-micro.enregistre {
   background: var(--alerte);
   border-color: var(--alerte);
-  color: #fff;
+  color: var(--sur-etat);
   animation: pouls 1.6s ease-in-out infinite;
 }
 
 .btn-micro.enregistre:hover {
   background: var(--alerte);
-  color: #fff;
+  color: var(--sur-etat);
 }
 
 @keyframes pouls {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(176, 61, 39, 0.35); }
-  50%      { box-shadow: 0 0 0 7px rgba(176, 61, 39, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 var(--alerte-halo); }
+  50%      { box-shadow: 0 0 0 7px transparent; }
 }
 
 .micro-statut {
@@ -1121,7 +1356,7 @@ details[open] > summary {
   width: 100%;
   padding: 0.85rem 1rem;
   background: var(--surface);
-  border: 1px solid var(--trait);
+  border: 1px solid transparent;
   border-radius: var(--r-md);
   text-align: left;
   cursor: pointer;
@@ -1153,7 +1388,7 @@ details[open] > summary {
 }
 
 .bilan-ligne-periode {
-  font-weight: 600;
+  font-weight: var(--g-moyen);
 }
 
 .bilan-ligne-meta {
@@ -1175,19 +1410,19 @@ details[open] > summary {
   background: var(--fond);
   color: var(--texte-doux);
   font-size: var(--t-xs);
-  font-weight: 600;
+  font-weight: var(--g-moyen);
   white-space: nowrap;
 }
 
 .badge-valide {
   background: var(--succes-tenu);
-  border-color: #cfdec2;
+  border-color: var(--succes-trait);
   color: var(--succes);
 }
 
 .badge-brouillon {
   background: var(--attention-tenue);
-  border-color: #ecd9ae;
+  border-color: var(--attention-trait);
   color: var(--attention);
 }
 
@@ -1214,8 +1449,8 @@ details[open] > summary {
   flex-direction: column;
   gap: 0.2rem;
   padding: 0.75rem 0.9rem;
-  background: var(--fond);
-  border: 1px solid var(--trait);
+  background: var(--fond-creux);
+  border: 1px solid transparent;
   border-radius: var(--r-md);
   text-align: left;
   cursor: pointer;
@@ -1235,7 +1470,7 @@ details[open] > summary {
 }
 
 .type-bilan-nom {
-  font-weight: 600;
+  font-weight: var(--g-moyen);
 }
 
 .type-bilan-detail {
@@ -1279,13 +1514,13 @@ details[open] > summary {
 
 .parcours-entete h1 {
   font-size: var(--t-base);
-  font-weight: 600;
+  font-weight: var(--g-moyen);
   color: var(--texte-doux);
 }
 
 .parcours-progression {
   flex: none;
-  margin: 0.5rem 0 0.4rem;
+  margin: 0.35rem 0 0.3rem;
 }
 
 .parcours-progression-tete {
@@ -1303,7 +1538,7 @@ details[open] > summary {
 
 .parcours-intro {
   flex: none;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.35rem;
   max-width: 78ch;
 }
 
@@ -1313,8 +1548,8 @@ details[open] > summary {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.15rem 0.15rem 0.4rem;
+  gap: 0.4rem;
+  padding: 0.15rem 0.15rem 0.3rem;
 }
 
 /* Les grilles prennent la hauteur qu'il leur faut ; la zone de commentaire
@@ -1337,8 +1572,8 @@ details[open] > summary {
   gap: 0.6rem;
   flex: none;
   flex-wrap: wrap;
-  padding-top: 0.6rem;
-  margin-top: 0.25rem;
+  padding-top: 0.5rem;
+  margin-top: 0.15rem;
   border-top: 1px solid var(--trait);
 }
 
@@ -1348,16 +1583,16 @@ details[open] > summary {
 }
 
 .bloc {
-  padding: 0.6rem 0.9rem;
+  padding: 0.5rem 0.9rem;
   background: var(--surface);
-  border: 1px solid var(--trait);
+  border: 1px solid transparent;
   border-radius: var(--r-md);
 }
 
 .bloc-titre {
   margin-bottom: 0.45rem;
   font-size: var(--t-sm);
-  font-weight: 650;
+  font-weight: var(--g-fort);
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--texte-doux);
@@ -1396,7 +1631,7 @@ details[open] > summary {
 .grille-tableau thead th {
   padding-bottom: 0.45rem;
   font-size: var(--t-xs);
-  font-weight: 650;
+  font-weight: var(--g-fort);
   color: var(--texte-doux);
   white-space: nowrap;
   border-bottom-color: var(--trait-fort);
@@ -1435,10 +1670,15 @@ details[open] > summary {
 .grille-tableau select,
 .grille-tableau input {
   font-size: var(--t-sm);
-  padding: 0.35rem 0.5rem;
+  padding: 0.3rem 0.5rem;
 }
 
+/* Six lignes de deux champs : chaque pixel gagné ici l'est six fois. L'étape
+   « Propositions pour la période suivante » débordait de vingt-six pixels avant
+   la refonte ; c'est ce qui la fait tenir. Les grilles de cotation gardent leur
+   interligne, leurs cellules portent des boutons radio à viser. */
 .grille-tableau td {
+  padding-block: 0.12rem;
   text-align: left;
 }
 
@@ -1450,13 +1690,13 @@ details[open] > summary {
   gap: 0.35rem;
   padding: 0.6rem 0.9rem;
   background: var(--surface);
-  border: 1px solid var(--trait);
+  border: 1px solid transparent;
   border-radius: var(--r-md);
 }
 
 .zone-libelle {
   font-size: var(--t-sm);
-  font-weight: 600;
+  font-weight: var(--g-moyen);
   color: var(--texte-doux);
 }
 
@@ -1475,7 +1715,7 @@ details[open] > summary {
 .btn-menu.enregistre {
   background: var(--alerte);
   border-color: var(--alerte);
-  color: #fff;
+  color: var(--sur-etat);
 }
 
 .zone-etat {
@@ -1544,15 +1784,15 @@ details[open] > summary {
   margin-bottom: 1.25rem;
   border-radius: var(--r-md);
   background: var(--attention-tenue);
-  border: 1px solid #ecd9ae;
-  color: #7c5510;
+  border: 1px solid var(--attention-trait);
+  color: var(--attention);
   font-size: var(--t-sm);
 }
 
 .encart-valide {
   background: var(--succes-tenu);
-  border-color: #cfdec2;
-  color: #46612f;
+  border-color: var(--succes-trait);
+  color: var(--succes);
 }
 
 .bilan-corps {
@@ -1564,7 +1804,7 @@ details[open] > summary {
 .section-bilan {
   padding: 1.25rem 1.4rem;
   background: var(--surface);
-  border: 1px solid var(--trait);
+  border: 1px solid transparent;
   border-radius: var(--r-lg);
   box-shadow: var(--ombre-1);
 }
@@ -1577,7 +1817,7 @@ details[open] > summary {
   margin-bottom: 0.9rem;
   border-bottom: 1px solid var(--trait);
   font-size: var(--t-sm);
-  font-weight: 650;
+  font-weight: var(--g-fort);
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--texte-doux);
@@ -1614,8 +1854,8 @@ details[open] > summary {
   display: flex;
   gap: 0.75rem;
   padding: 0.85rem;
-  background: var(--fond);
-  border: 1px solid var(--trait);
+  background: var(--fond-creux);
+  border: 1px solid transparent;
   border-radius: var(--r-md);
 }
 
@@ -1655,7 +1895,7 @@ details[open] > summary {
 
 .element-lecture dt {
   font-size: var(--t-xs);
-  font-weight: 650;
+  font-weight: var(--g-fort);
   letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--action-survol);
@@ -1707,7 +1947,8 @@ dialog {
 }
 
 dialog::backdrop {
-  background: rgba(56, 45, 37, 0.35);
+  background: var(--voile);
+  backdrop-filter: blur(3px);
 }
 
 /* Le `display` reste conditionné à [open] : une règle d'auteur portée par
@@ -1760,7 +2001,7 @@ dialog::backdrop {
 
 .tiroir-section h3 {
   font-size: var(--t-sm);
-  font-weight: 650;
+  font-weight: var(--g-fort);
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--texte-doux);
@@ -1778,16 +2019,51 @@ dialog::backdrop {
   to   { background: transparent; }
 }
 
+/* Contrôle segmenté générique — les onglets de la fiche en sont la même
+   forme. Utilisé pour la bascule d'apparence : trois valeurs exclusives, dont
+   aucune n'est un « défaut désactivé », se montrent côte à côte plutôt que dans
+   une liste déroulante. */
+.segments {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: var(--e-1);
+  padding: var(--e-1);
+  background: var(--fond-creux);
+  border-radius: var(--r-pilule);
+}
+
+.segment {
+  padding: 0.35rem 0.85rem;
+  background: none;
+  border: none;
+  border-radius: var(--r-pilule);
+  color: var(--texte-doux);
+  font-size: var(--t-sm);
+  font-weight: var(--g-moyen);
+  cursor: pointer;
+  transition: background-color var(--transition), color var(--transition);
+}
+
+.segment:hover {
+  color: var(--texte);
+}
+
+.segment[aria-checked="true"] {
+  background: var(--surface);
+  color: var(--texte);
+  box-shadow: var(--ombre-1);
+}
+
 .tiroir-pied {
   padding: 0.9rem 1.25rem;
   border-top: 1px solid var(--trait);
-  background: var(--fond);
+  background: var(--fond-creux);
 }
 
 .modale {
   width: min(30rem, calc(100vw - 2rem));
   margin: auto;
-  border-radius: var(--r-lg);
+  border-radius: var(--r-xl);
   box-shadow: var(--ombre-3);
 }
 
@@ -1826,15 +2102,15 @@ dialog::backdrop {
   gap: 0.6rem;
   padding: 0.9rem 1.25rem;
   border-top: 1px solid var(--trait);
-  background: var(--fond);
-  border-radius: 0 0 var(--r-lg) var(--r-lg);
+  background: var(--fond-creux);
+  border-radius: 0 0 var(--r-xl) var(--r-xl);
 }
 
 .toasts {
   position: fixed;
   right: 1rem;
   bottom: 1rem;
-  z-index: 100;
+  z-index: var(--z-toasts);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -1893,8 +2169,16 @@ dialog::backdrop {
 }
 
 @media (max-width: 860px) {
+  /* Le canevas occupe tout : sur un téléphone, le coin arrondi et la bande de
+     chrome qui l'entoure ne montreraient qu'une structure dont il ne reste
+     rien — la colonne est un tiroir refermé. */
   .zone-travail {
     padding: 1.25rem 1rem 3rem;
+    border-top-left-radius: 0;
+  }
+
+  body {
+    background: var(--canevas);
   }
 
   .entete-menu {
@@ -1910,7 +2194,8 @@ dialog::backdrop {
     display: none;
   }
 
-  .identite-textes {
+  .identite-textes,
+  .identite-chevron {
     display: none;
   }
 
@@ -1926,7 +2211,9 @@ dialog::backdrop {
     top: 0;
     bottom: 0;
     left: 0;
-    z-index: 40;
+    z-index: var(--z-barre);
+    background: var(--chrome);
+    padding-top: var(--e-3);
     /* On laisse toujours une bande de fond touchable pour refermer le tiroir
        au pouce, même sur les petits écrans. */
     width: min(19rem, calc(100vw - 4rem));
@@ -1943,8 +2230,8 @@ dialog::backdrop {
     display: block;
     position: fixed;
     inset: 0;
-    z-index: 30;
-    background: rgba(56, 45, 37, 0.35);
+    z-index: var(--z-voile);
+    background: var(--voile);
   }
 
   .grille-deux,
@@ -1984,40 +2271,37 @@ dialog::backdrop {
    9. Portail, administration, pilotage
    ======================================================================== */
 
-/* Écran de préparation : posé par-dessus l'application déjà peinte, pour que
-   rien ne reste à charger une fois la saisie commencée. Il passe au-dessus du
-   portail (z-index 200) parce qu'il lui succède. */
-.preparation {
+/* L'écran de chargement — le seul.
+
+   Posé par-dessus tout le reste, y compris une application déjà peinte : il
+   succède au portail (200) et doit couvrir le bandeau d'installation (205).
+   Il ne s'affiche jamais en même temps que le portail — `chargement.js` le
+   suspend pendant la connexion. */
+.chargement {
   position: fixed;
   inset: 0;
-  z-index: 210;
+  z-index: var(--z-chargement);
   display: grid;
   place-items: center;
-  padding: 1.5rem;
+  padding: var(--e-4);
   background: var(--fond);
   overflow-y: auto;
 }
 
-.preparation-carte {
+.chargement-carte {
   width: min(30rem, 100%);
-  padding: 1.75rem;
+  padding: var(--e-5);
   background: var(--surface);
-  border: 1px solid var(--trait);
   border-radius: var(--r-lg);
   box-shadow: var(--ombre-2);
 }
 
-.preparation-carte h1 {
+.chargement-carte h1 {
   font-size: var(--t-xl);
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--e-3);
 }
 
-.preparation-etape {
-  color: var(--texte-doux);
-  margin-bottom: 1rem;
-}
-
-.preparation-jauge {
+.chargement-jauge {
   display: block;
   height: 6px;
   border-radius: var(--r-pilule);
@@ -2025,7 +2309,7 @@ dialog::backdrop {
   overflow: hidden;
 }
 
-.preparation-barre {
+.chargement-barre {
   display: block;
   height: 100%;
   width: 0;
@@ -2036,7 +2320,7 @@ dialog::backdrop {
 
 /* Avancement sans pourcentage : l'ouverture de la base ne se mesure pas en
    octets, mais elle ne doit pas paraître figée pour autant. */
-.preparation-barre-indeterminee {
+.chargement-barre-indeterminee {
   width: 40%;
   animation: barre-va-et-vient 1.6s ease-in-out infinite;
 }
@@ -2047,32 +2331,137 @@ dialog::backdrop {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .preparation-barre-indeterminee {
+  .chargement-barre-indeterminee {
     animation: none;
     width: 100%;
     opacity: 0.5;
   }
 }
 
-.preparation-taille {
-  margin-top: 0.5rem;
+.chargement-taille {
+  margin-top: var(--e-2);
   min-height: 1.2em; /* réserve la ligne : le texte apparaît sans décaler le reste */
   font-size: var(--t-sm);
   color: var(--texte-tenu);
   font-variant-numeric: tabular-nums;
 }
 
-.preparation-note {
-  margin-top: 1.1rem;
-  padding-top: 0.9rem;
+/* La liste des étapes : c'est elle qui rend l'écran dynamique. Une ligne par
+   chose entreprise, son état, et ce qui se passe précisément en ce moment. */
+.chargement-etapes {
+  list-style: none;
+  margin: var(--e-4) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+}
+
+.chargement-etape {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-3);
+  min-height: 1.75rem;
+}
+
+.chargement-puce {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.15rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-pilule);
+  background: var(--fond-creux);
+  color: var(--texte-tenu);
+}
+
+.chargement-puce .ico {
+  width: 0.8rem;
+  height: 0.8rem;
+  stroke-width: 2.5;
+}
+
+/* En cours : un point qui bat, pour distinguer d'un coup d'œil ce qui travaille
+   de ce qui attend son tour. */
+.chargement-etape-encours .chargement-puce {
+  background: var(--action-tenue);
+  animation: chargement-bat 1.4s ease-in-out infinite;
+}
+
+.chargement-etape-encours .chargement-puce::after {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: var(--r-pilule);
+  background: var(--action);
+}
+
+@keyframes chargement-bat {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chargement-etape-encours .chargement-puce {
+    animation: none;
+  }
+}
+
+.chargement-etape-faite .chargement-puce {
+  background: var(--succes-tenu);
+  color: var(--succes);
+}
+
+.chargement-etape-echouee .chargement-puce {
+  background: var(--alerte-tenue);
+  color: var(--alerte);
+}
+
+.chargement-textes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.chargement-libelle {
+  font-weight: var(--g-moyen);
+}
+
+/* Une étape encore à venir, ou remise à plus tard, ne doit pas peser autant
+   qu'une étape en cours : elle n'est pas ce qu'on attend. */
+.chargement-etape-attente .chargement-libelle,
+.chargement-etape-differee .chargement-libelle {
+  color: var(--texte-tenu);
+  font-weight: var(--g-normal);
+}
+
+.chargement-detail {
+  font-size: var(--t-sm);
+  color: var(--texte-tenu);
+  line-height: 1.45;
+}
+
+.chargement-etape-echouee .chargement-detail {
+  color: var(--alerte);
+}
+
+.chargement-sorties {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-3);
+  margin-top: var(--e-4);
+}
+
+.chargement-note {
+  margin-top: var(--e-4);
+  padding-top: var(--e-3);
   border-top: 1px solid var(--trait);
   font-size: var(--t-xs);
   color: var(--texte-tenu);
   line-height: 1.5;
-}
-
-.preparation-passer {
-  margin-top: 0.9rem;
 }
 
 /* Écran de connexion : occupe toute la fenêtre et masque l'application, qui
@@ -2080,7 +2469,7 @@ dialog::backdrop {
 .portail {
   position: fixed;
   inset: 0;
-  z-index: 200;
+  z-index: var(--z-portail);
   display: grid;
   place-items: center;
   padding: 1.5rem;
@@ -2092,7 +2481,7 @@ dialog::backdrop {
   width: min(28rem, 100%);
   padding: 1.75rem;
   background: var(--surface);
-  border: 1px solid var(--trait);
+  border: 1px solid transparent;
   border-radius: var(--r-lg);
   box-shadow: var(--ombre-2);
 }
@@ -2120,7 +2509,7 @@ dialog::backdrop {
   margin: 1rem 0 1.4rem;
   padding: 0.7rem 0.85rem;
   background: var(--fond-creux);
-  border: 1px solid var(--trait);
+  border: 1px solid transparent;
   border-radius: var(--r-md);
   font-size: var(--t-sm);
   color: var(--texte-doux);
@@ -2178,13 +2567,13 @@ dialog::backdrop {
 .bloc-sauvegarde h4 {
   margin: 0;
   font-size: var(--t-base);
-  font-weight: 600;
+  font-weight: var(--g-moyen);
 }
 
 /* Une mention d'aide qui appelle une action, sans crier. */
 .aide-alerte {
   color: var(--attention);
-  font-weight: 550;
+  font-weight: var(--g-moyen);
 }
 
 .portail-mention {
@@ -2197,7 +2586,7 @@ dialog::backdrop {
 }
 
 .compte-identite {
-  font-weight: 600;
+  font-weight: var(--g-moyen);
 }
 
 .liste-equipe {
@@ -2215,8 +2604,8 @@ dialog::backdrop {
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.5rem 0.65rem;
-  background: var(--fond);
-  border: 1px solid var(--trait);
+  background: var(--fond-creux);
+  border: 1px solid transparent;
   border-radius: var(--r-sm);
 }
 
@@ -2228,7 +2617,7 @@ dialog::backdrop {
 }
 
 .equipe-nom {
-  font-weight: 550;
+  font-weight: var(--g-moyen);
 }
 
 .equipe-meta {
@@ -2277,10 +2666,10 @@ dialog::backdrop {
   padding: 0.1rem 0.5rem;
   border-radius: var(--r-pilule);
   background: var(--attention-tenue);
-  border: 1px solid #ecd9ae;
+  border: 1px solid var(--attention-trait);
   color: var(--attention);
   font-size: var(--t-xs);
-  font-weight: 600;
+  font-weight: var(--g-moyen);
   white-space: nowrap;
 }
 
@@ -2302,7 +2691,7 @@ dialog::backdrop {
 
 .echeance-depassee {
   color: var(--alerte);
-  font-weight: 600;
+  font-weight: var(--g-moyen);
 }
 
 /* ========================================================================
@@ -2339,9 +2728,9 @@ dialog::backdrop {
   width: 100%;
   padding: 0.8rem 1rem;
   border-radius: var(--r-md);
-  border: 1px solid var(--trait);
+  border: 1px solid transparent;
   background: var(--surface);
-  font-weight: 550;
+  font-weight: var(--g-moyen);
 }
 
 .synthese-bon { border-color: var(--succes); background: var(--succes-tenu); color: var(--succes); }
@@ -2376,7 +2765,7 @@ dialog::backdrop {
   gap: 0.15rem 1rem;
   padding: 0.7rem 0.85rem;
   background: var(--surface);
-  border: 1px solid var(--trait);
+  border: 1px solid transparent;
   border-left: 3px solid var(--trait-fort);
   border-radius: var(--r-sm);
 }
@@ -2385,11 +2774,11 @@ dialog::backdrop {
 .controle-limite { border-left-color: var(--attention); }
 .controle-bon { border-left-color: var(--succes); }
 
-.controle-intitule { font-weight: 550; }
+.controle-intitule { font-weight: var(--g-moyen); }
 
 .controle-etat {
   font-size: var(--t-xs);
-  font-weight: 600;
+  font-weight: var(--g-moyen);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   white-space: nowrap;
@@ -2469,7 +2858,7 @@ dialog::backdrop {
   left: 0.75rem;
   right: 0.75rem;
   bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
-  z-index: 205;
+  z-index: var(--z-bandeau);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2513,6 +2902,7 @@ dialog::backdrop {
   .btn-icone,
   .puce,
   .onglet,
+  .segment,
   .btn-lien,
   .marque {
     min-height: 44px;
@@ -2574,7 +2964,7 @@ dialog::backdrop {
 }
 
 .comparaison-tableau tbody th {
-  font-weight: 550;
+  font-weight: var(--g-moyen);
   color: var(--texte-doux);
 }
 
@@ -2594,7 +2984,7 @@ dialog::backdrop {
 .comparaison-texte {
   padding: 0.75rem;
   background: var(--fond-creux);
-  border: 1px solid var(--trait);
+  border: 1px solid transparent;
   border-radius: var(--r-sm);
   line-height: 1.6;
   white-space: pre-wrap;

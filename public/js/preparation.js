@@ -1,6 +1,6 @@
 /**
- * Écran de préparation : tout ce que l'outil doit télécharger, il le télécharge
- * ici, avant que l'éducateur ne commence à écrire.
+ * Préparation de la dictée : tout ce que l'outil doit télécharger, il le
+ * télécharge ici, avant que l'éducateur ne commence à écrire.
  *
  * La dictée reposait jusqu'ici sur un chargement à la demande : la
  * bibliothèque, le moteur d'inférence WebAssembly et les poids du modèle
@@ -17,48 +17,16 @@
  * Deux principes tiennent le reste :
  *
  *  - **jamais de blocage définitif.** Un poste sans accès à huggingface.co doit
- *    rester capable d'écrire à la main. L'échec propose donc de continuer, il
- *    n'enferme pas ;
+ *    rester capable d'écrire à la main. L'étape est donc déclarée non
+ *    bloquante : l'écran offre toujours une sortie tant qu'elle est la seule à
+ *    tourner ;
  *  - **jamais de téléchargement muet.** Cent cinquante mégaoctets sur la
  *    connexion d'un établissement, cela s'annonce.
- */
-import { $ } from "./ui.js";
-
-/**
- * Sous ce délai, l'écran n'apparaît pas du tout.
  *
- * Quand le modèle est déjà en cache, la préparation dure moins d'une seconde :
- * afficher puis retirer un écran aussitôt produirait un clignotement, plus
- * gênant que l'attente qu'il prétend expliquer.
+ * Ce fichier ne touche plus au DOM : il rend compte à `chargement.js`, qui
+ * décide seul de ce qui s'affiche et quand.
  */
-const SEUIL_AFFICHAGE_MS = 400;
-
-let ecranAffiche = false;
-
-function mo(octets) {
-  return `${(octets / 1024 / 1024).toFixed(0)} Mo`;
-}
-
-function afficher(premiereFois) {
-  if (ecranAffiche) return;
-  ecranAffiche = true;
-
-  $("preparation-premiere").hidden = !premiereFois;
-  $("preparation").hidden = false;
-  // L'application est peinte dessous : sans `inert`, elle resterait navigable
-  // au clavier sous l'écran, et un lecteur d'écran la lirait par-dessus.
-  $("app").inert = true;
-  $("entete").inert = true;
-  $("preparation-passer").focus();
-}
-
-function masquer() {
-  if (!ecranAffiche) return;
-  ecranAffiche = false;
-  $("preparation").hidden = true;
-  $("app").inert = false;
-  $("entete").inert = false;
-}
+import { suivre } from "./chargement.js";
 
 /**
  * Totalise l'avancement de plusieurs fichiers.
@@ -94,33 +62,6 @@ function compteurDeTelechargement() {
   };
 }
 
-function majBarre(cumul) {
-  const barre = $("preparation-barre");
-  const chiffres = $("preparation-taille");
-
-  if (!cumul) {
-    chiffres.textContent = "";
-    return;
-  }
-
-  const pct = Math.min(100, Math.round((cumul.charge / cumul.total) * 100));
-  barre.style.width = `${pct}%`;
-  barre.parentElement.setAttribute("aria-valuenow", String(pct));
-  chiffres.textContent = `${mo(cumul.charge)} sur ${mo(cumul.total)}`;
-}
-
-function signalerEchec(raison) {
-  afficher(false);
-  $("preparation-encours").hidden = true;
-  $("preparation-echec").hidden = false;
-  // Les explications de `transcription.js` sont écrites pour suivre « La dictée
-  // a échoué : » et commencent donc en minuscule. Ici elles tiennent seules.
-  $("preparation-echec-texte").textContent = raison
-    ? raison.charAt(0).toUpperCase() + raison.slice(1)
-    : "La préparation de la dictée n'a pas abouti sur ce poste.";
-  $("preparation-continuer").focus();
-}
-
 /**
  * Prépare tout ce qui devrait sinon se charger en cours de saisie.
  *
@@ -140,6 +81,8 @@ export async function preparerOutil({ seulementSiDejaCharge = false } = {}) {
 
   if (module.modelePret()) return;
 
+  const etape = suivre("dictee", "Moteur de dictée", { bloquante: false });
+
   // La question est posée au cache du navigateur, pas à un drapeau : c'est lui
   // qui décide si la préparation coûtera du réseau, et lui seul le sait.
   const enCache = await module.modeleEnCache();
@@ -149,27 +92,16 @@ export async function preparerOutil({ seulementSiDejaCharge = false } = {}) {
   // demandés serait présumer d'une connexion illimitée. Quand le modèle est
   // déjà là, en revanche, le remettre en mémoire ne coûte aucun réseau et fait
   // gagner les quelques secondes d'instanciation du graphe.
-  if (seulementSiDejaCharge && premiereFois) return;
+  if (seulementSiDejaCharge && premiereFois) {
+    etape.differer("Préparé au premier usage du micro");
+    return;
+  }
+
   const totaliser = compteurDeTelechargement();
-  let abandonne = false;
-
-  const minuterie = setTimeout(() => afficher(premiereFois), SEUIL_AFFICHAGE_MS);
-
-  $("preparation-passer").onclick = () => {
-    // Le chargement continue en arrière-plan : l'éducateur n'attend plus
-    // devant l'écran, mais il ne repart pas de zéro non plus.
-    abandonne = true;
-    masquer();
-  };
-  $("preparation-continuer").onclick = () => {
-    abandonne = true;
-    masquer();
-  };
 
   const pret = await module.prechargerModele((_etape, _pct, brut) => {
-    if (abandonne) return;
     const cumul = totaliser(brut);
-    majBarre(cumul);
+    etape.avancer(cumul);
     // Le libellé suit ce qui se passe réellement. Une fois les octets reçus, il
     // reste l'instanciation du graphe ONNX — quelques secondes pendant
     // lesquelles rien ne progresse, et où « téléchargement » serait faux.
@@ -177,21 +109,26 @@ export async function preparerOutil({ seulementSiDejaCharge = false } = {}) {
     // l'appareil ferait croire à un rechargement complet à chaque ouverture —
     // et donnerait à l'application l'air de gaspiller le forfait de son
     // utilisateur, ce qu'elle ne fait pas.
-    const enCours =
+    etape.dire(
       cumul && cumul.charge < cumul.total
         ? premiereFois
-          ? "Téléchargement du modèle de transcription…"
+          ? "Téléchargement du modèle, une seule fois sur cet appareil…"
           : "Reprise du modèle déjà présent sur l'appareil…"
-        : "Mise en place du moteur de transcription…";
-    $("preparation-etape").textContent = enCours;
+        : "Mise en place du moteur de transcription…"
+    );
   });
 
-  clearTimeout(minuterie);
-
-  if (abandonne) return;
   if (pret) {
-    masquer();
+    etape.reussir();
     return;
   }
-  signalerEchec(module.raisonEchecPreparation());
+
+  // Les explications de `transcription.js` sont écrites pour suivre « La dictée
+  // a échoué : » et commencent donc en minuscule. Ici elles tiennent seules.
+  const raison = module.raisonEchecPreparation();
+  etape.echouer(
+    raison
+      ? raison.charAt(0).toUpperCase() + raison.slice(1)
+      : "La dictée n'a pas pu être préparée sur ce poste. Vous pouvez écrire au clavier."
+  );
 }
