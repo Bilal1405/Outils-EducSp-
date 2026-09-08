@@ -172,6 +172,43 @@ describe("aucune session", () => {
   });
 });
 
+describe("porte de la version téléphone", () => {
+  // Deux routes sont ouvertes par clé d'activation, au-dessus de la fermeture
+  // générale de `/api`. Ce qui compte ici n'est pas qu'elles fonctionnent —
+  // `test/assistanceLocale.test.ts` s'en charge — mais qu'elles n'aient rien
+  // ouvert d'autre au passage.
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.CLES_ACTIVATION_LOCALE = "cle-de-test-suffisamment-longue";
+  });
+
+  it("n'ouvre aucune autre route de l'API", async () => {
+    const cle = "cle-de-test-suffisamment-longue";
+    for (const [methode, chemin] of [
+      ["get", "/api/amorcage"],
+      ["get", "/api/patients"],
+      ["get", "/api/utilisateurs"],
+      ["get", "/api/etablissement/sauvegarde"],
+      ["get", "/api/tableau-de-bord"],
+    ] as const) {
+      const res = await request(app)[methode](chemin).set("x-cle-activation", cle);
+      expect(res.status, `${methode} ${chemin}`).toBe(401);
+    }
+  });
+
+  it("ne fabrique pas d'utilisateur : rien n'est lu au nom de personne", async () => {
+    // Une clé d'activation n'est pas une session. Si elle en devenait une, le
+    // cloisonnement par établissement n'aurait plus de point d'appui.
+    await request(app)
+      .post("/api/local/reformulation")
+      .set("x-outils-educsp", "1")
+      .set("x-cle-activation", "cle-de-test-suffisamment-longue")
+      .send({ texte: "x" });
+    expect(listPatients).not.toHaveBeenCalled();
+    expect(getEtablissementById).not.toHaveBeenCalled();
+  });
+});
+
 describe("protection CSRF", () => {
   beforeEach(() => {
     vi.clearAllMocks();

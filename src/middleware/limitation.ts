@@ -38,16 +38,29 @@ export interface OptionsLimitation {
   fenetreMinutes: number;
   /** Nom court, repris dans le message d'erreur. */
   intitule: string;
+  /**
+   * Qui est compté, quand ce n'est pas un utilisateur de session.
+   *
+   * Les routes ouvertes par clé d'activation n'ont pas de session : sans cela,
+   * tous les appareils tomberaient sur la même clé `anonyme` et le premier
+   * viderait le plafond de tous les autres.
+   */
+  identite?: (req: Request) => string;
 }
 
-export function limiter({ maximum, fenetreMinutes, intitule }: OptionsLimitation) {
+export function limiter({
+  maximum,
+  fenetreMinutes,
+  intitule,
+  identite,
+}: OptionsLimitation) {
   const dureeMs = fenetreMinutes * 60_000;
 
   return (req: Request, res: Response, next: NextFunction): void => {
     // La clé est l'utilisateur authentifié, pas l'adresse IP : dans un ESMS,
     // tout le monde partage la même sortie Internet, et compter par IP
     // pénaliserait une équipe entière pour l'usage d'une seule personne.
-    const cle = `${intitule}:${req.utilisateur?.id ?? "anonyme"}`;
+    const cle = `${intitule}:${identite ? identite(req) : req.utilisateur?.id ?? "anonyme"}`;
     const maintenant = Date.now();
 
     if (compteurs.size > 5000) {

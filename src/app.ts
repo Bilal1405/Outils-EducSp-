@@ -15,6 +15,7 @@ import { statiqueCompresse } from "./middleware/statique";
 import { POLITIQUE_CSP } from "./securite/csp";
 import { amorcageRouter } from "./routes/amorcage";
 import { assistanceRouter } from "./routes/assistance";
+import { assistanceLocaleRouter } from "./routes/assistanceLocale";
 import { authRouter } from "./routes/auth";
 import { bilansRouter } from "./routes/bilans";
 import { etablissementsRouter } from "./routes/etablissements";
@@ -177,6 +178,14 @@ export function createApp() {
   app.use(authentifier);
   app.use(protegerCsrf);
   app.use(authRouter);
+
+  // L'application installée sur un téléphone n'a pas de session : ses dossiers
+  // vivent sur l'appareil. Deux routes lui sont ouvertes par clé d'activation,
+  // et elles n'écrivent rien. Montées ici, au-dessus de la fermeture générale,
+  // plutôt qu'en exception à l'intérieur : la ligne suivante doit continuer de
+  // se lire comme « tout ce qui suit est fermé ».
+  app.use(assistanceLocaleRouter);
+
   app.use("/api", exigerAuthentification);
 
   app.use(schemaRouter);

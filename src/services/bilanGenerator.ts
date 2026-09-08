@@ -1,6 +1,10 @@
 import { ZodError } from "zod";
 import { BilanSchema, type Bilan } from "../schema/bilan.schema";
-import { buildSystemPrompt, buildUserPrompt } from "../prompts/bilanPrompt";
+import {
+  buildSystemPrompt,
+  buildUserPrompt,
+  type ContextePrecedent,
+} from "../prompts/bilanPrompt";
 import { chatComplete, type ChatMessage } from "./llmClient";
 
 export class BilanGenerationError extends Error {
@@ -33,7 +37,7 @@ function extractJson(raw: string): unknown {
  */
 export async function generateBilan(
   inputText: string,
-  previousBilan?: Bilan
+  previousBilan?: ContextePrecedent
 ): Promise<Bilan> {
   const messages: ChatMessage[] = [
     { role: "system", content: buildSystemPrompt() },

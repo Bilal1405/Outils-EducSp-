@@ -77,10 +77,23 @@ ${BILAN_JSON_SCHEMA}`;
 }
 
 /**
+ * Ce que le prompt lit vraiment d'un bilan antérieur : deux sections, pas le
+ * document entier. Le type le dit, plutôt que de laisser croire que l'en-tête
+ * — donc le nom du bénéficiaire — part lui aussi au modèle.
+ */
+export type ContextePrecedent = Pick<
+  Bilan,
+  "evaluation_objectifs_par_domaine" | "proposition_objectifs_periode_suivante"
+>;
+
+/**
  * Prompt utilisateur : compte-rendu de l'éducateur, et contexte du bilan
  * précédent lorsqu'il existe (règle de continuité inter-bilans).
  */
-export function buildUserPrompt(inputText: string, previousBilan?: Bilan): string {
+export function buildUserPrompt(
+  inputText: string,
+  previousBilan?: ContextePrecedent
+): string {
   const parts: string[] = [];
 
   parts.push(
