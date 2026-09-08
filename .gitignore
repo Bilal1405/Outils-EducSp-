@@ -1,0 +1,32 @@
+node_modules/
+dist/
+.env
+*.log
+
+# Exports de bilans : contiennent des données de bénéficiaires.
+*.docx
+*.pdf
+
+# Anciens uploads audio (la transcription se fait désormais dans le
+# navigateur, plus rien n'est écrit ici).
+uploads/
+
+# Bibliothèque de transcription : c'est la forme compressée (.br) qui est
+# versionnée — l'analyse de secrets de GitHub refuse le fichier minifié, dont
+# les noms de classes ressemblent à des clés d'API. Le serveur sert le .br
+# directement (cf. src/middleware/statique.ts et public/vendor/README.md).
+public/vendor/transformers.min.js
+
+# Sauvegardes de base : contiennent des données de santé, jamais versionnées.
+sauvegardes/
+*.dump
+
+# Moteur PostgreSQL du navigateur : copié depuis node_modules par
+# `npm run vendor:pglite`, jamais versionné (16 Mo).
+public/vendor/pglite/
+
+# Tampon de version et service worker : produits à chaque construction
+# (`npm run build`), jamais versionnés — ils changent à chaque déploiement.
+public/version.json
+public/js/version.js
+public/sw.js
