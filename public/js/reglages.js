@@ -9,6 +9,14 @@ import { api } from "./api.js";
 import { etat, emettre } from "./etat.js";
 import { $, creer, notifier, statut, initiales, vider } from "./ui.js";
 import { choisirTheme, themeChoisi } from "./theme.js";
+import { modeLocal } from "./api.js";
+import {
+  assistanceActivee,
+  cleActivation,
+  definirCleActivation,
+} from "./local/assistance.js";
+import { preparerEnvoi, jetonsPoses } from "./local/masquage.js";
+import { montrer } from "./apercuEnvoi.js";
 
 /** En dessous de ce reste, le quota passe en alerte visuelle. */
 const SEUIL_QUOTA_BAS = 0.2;
@@ -367,8 +375,70 @@ function initApparence() {
   refleter(themeChoisi());
 }
 
+/**
+ * Clé d'activation de la rédaction assistée.
+ *
+ * Présente en version téléphone seulement : sur serveur, c'est la session qui
+ * autorise, et il n'y a rien à saisir.
+ */
+function initAssistance() {
+  const section = document.querySelector('[data-section="assistance"]');
+  if (!section) return;
+  section.hidden = !modeLocal();
+  if (!modeLocal()) return;
+
+  const champ = $("assistance-cle");
+  const retour = $("assistance-statut");
+
+  const refleter = () => {
+    statut(
+      retour,
+      assistanceActivee()
+        ? "Activée sur cet appareil."
+        : "Non activée : la rédaction assistée et la mise au propre sont indisponibles.",
+      assistanceActivee() ? "ok" : ""
+    );
+  };
+
+  champ.value = cleActivation();
+  refleter();
+
+  $("assistance-enregistrer").addEventListener("click", () => {
+    definirCleActivation(champ.value);
+    champ.value = cleActivation();
+    refleter();
+    notifier(
+      assistanceActivee() ? "Clé enregistrée." : "Clé retirée.",
+      assistanceActivee() ? "ok" : "info"
+    );
+  });
+
+  // L'aperçu ne montre pas un exemple : il masque un texte témoin avec les
+  // noms réellement présents dans les dossiers de cet appareil, pour que ce
+  // qu'on lit soit ce qui partirait.
+  $("assistance-apercu").addEventListener("click", async () => {
+    const { traiter } = await import("./local/routeur.js");
+    const { donnees } = await traiter("GET", "/api/amorcage");
+    const beneficiaires = donnees?.beneficiaires ?? [];
+    const premier = beneficiaires[0];
+    const temoin = premier
+      ? `${premier.prenom} ${premier.nom} a participé à l'activité, ` +
+        `encadré par ${etat.utilisateur?.prenom ?? ""} ${etat.utilisateur?.nom ?? ""}.`
+      : "Aucun bénéficiaire n'est encore enregistré sur cet appareil.";
+
+    const { texte, table } = preparerEnvoi(temoin, {
+      beneficiaire: premier ?? null,
+      autres: beneficiaires.slice(1),
+      auteur: etat.utilisateur ?? null,
+      activite: donnees?.etablissement?.nom ?? "",
+    });
+    montrer(texte, jetonsPoses(texte, table));
+  });
+}
+
 export function initReglages() {
   initApparence();
+  initAssistance();
   $("sauvegarde-btn").addEventListener("click", telechargerSauvegarde);
   $("reglages-btn").addEventListener("click", () => ouvrirReglages());
   $("reglages-fermer").addEventListener("click", () => $("reglages").close());

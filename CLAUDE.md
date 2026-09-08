@@ -60,13 +60,29 @@ Les trames Répit et Trimestriel se remplissent à la main : le moteur n'y coter
 que des compétences qu'il n'a pas observées. Il n'intervient que pour remettre au
 propre un commentaire dicté (`/api/assistance/reformulation`), sans rien ajouter.
 
-Contrainte d'écran : une étape de parcours guidé doit tenir dans 1366×768 sans
-défilement. Vérifiée par mesure en navigateur — les trente étapes des deux
+Contrainte d'écran, version bureau : une étape de parcours guidé doit tenir dans
+1366×768 sans défilement. Vérifiée par mesure en navigateur — les trente étapes des deux
 trames, `scrollHeight` contre `clientHeight` — et `test/modelesBilan.test.ts`
 borde le nombre de lignes de grille par étape. Scinder l'étape et remesurer si
 dépassé. Deux étapes débordaient de neuf et vingt-six pixels ; la marge a été
 reprise dans les interlignes du parcours et l'interligne des grilles à deux
 colonnes, sans toucher au contenu des trames.
+
+**Sur téléphone, cette règle change de forme.** En 393×851 une cotation à huit
+items ne peut pas tenir : le budget vertical est de 300 à 480 px. Ce qui la
+remplace, et qui doit rester vrai : le titre d'étape, la jauge et le pied restent
+visibles en permanence ; seul `.parcours-corps` défile. Sous 860 px, les tableaux
+deviennent une **pile de cartes** — l'item en entier, ses valeurs en boutons de
+44 px sur deux colonnes — parce qu'à cette largeur les seuls en-têtes de
+l'échelle de guidance réclament 420 px pour 327 disponibles, et que le
+défilement horizontal du tableau empêchait de voir l'item et sa case en même
+temps. Mêmes items, mêmes valeurs, mêmes données : c'est l'affichage qui change,
+pas la trame, et la version bureau garde son tableau. Le rendu passe par un
+`<label class="cotation-option">` qui enveloppe chaque bouton radio — il rend
+aussi toute la cellule cliquable, là où seul un rond de 17 px l'était. Ne pas lui
+donner de hauteur propre : mesuré, un `min-height` y coûte 47 px sur une grille
+de huit items et fait défiler une étape qui tenait. `verifier-parcours-mobile`
+et `verifier-hauteurs` bordent les deux côtés.
 
 Démarrage : l'interface ouvre par **un seul** aller-retour utile,
 `GET /api/amorcage` (établissement, quota, équipe, bénéficiaires), lancé en
@@ -87,8 +103,42 @@ l'adresse et non dans un réglage mémorisé. Trois fichiers sont **générés**
 ne jamais les modifier à la main, `npm run generer:migrations` et
 `generer:schema` les produisent, `test/migrationsNavigateur.test.ts` et
 `test/routeurLocal.test.ts` refusent une copie périmée. Ce qui manque encore
-répond 501 avec sa raison, jamais en silence : reformulation, génération de
-bilan, export .docx, sauvegarde.
+répond 501 avec sa raison, jamais en silence : export .docx, sauvegarde.
+
+Rédaction assistée sur téléphone : un modèle de langage ne tient pas dans un
+appareil, et la clé du fournisseur ne peut pas y être déposée. Deux routes du
+serveur — `POST /api/local/redaction` et `/api/local/reformulation`
+(`src/routes/assistanceLocale.ts`) — sont donc ouvertes par **clé d'activation**
+(`CLES_ACTIVATION_LOCALE`, `src/middleware/cleActivation.ts`). Elles sont montées
+**au-dessus** de `app.use("/api", exigerAuthentification)` : cette ligne doit
+continuer de se lire « tout ce qui suit est fermé », on ne lui ajoute pas
+d'exception. Trois propriétés à ne pas défaire :
+
+- **elles n'écrivent rien** — ni bilan, ni journal, ni compteur. Le document est
+  rédigé sur l'appareil ; le serveur n'en garde pas de trace, et répond donc même
+  base injoignable. `test/assistanceLocale.test.ts` compte les requêtes SQL ;
+- **fermé par défaut** : sans clé configurée, 503 et l'application le dit. Un
+  oubli de configuration ferme, il n'ouvre jamais ;
+- **le plafond est compté par clé**, pas globalement (`identite` de
+  `limiter()`), sans quoi le premier appareil viderait celui des autres.
+
+Côté appareil, `public/js/local/masquage.js` retire avant l'envoi les noms que
+la base connaît — bénéficiaire, autres bénéficiaires, auteur, activité — et les
+remet au retour ; `en_tete` est ensuite **réécrit depuis la base**, jamais gardé
+du modèle, qui n'a reçu aucun nom. Ce qu'il ne couvre pas est écrit dans le
+module et dans `test/masquage.test.ts` : un prénom que la base ignore — fratrie,
+collègue, école — passe. C'est à cela que sert l'aperçu montré avant le premier
+envoi (`public/js/apercuEnvoi.js`), qui donne à lire ce qui part au lieu de
+l'affirmer. Un texte pseudonymisé reste une donnée personnelle (RGPD art. 4·5) :
+le masquage réduit le risque, il ne change pas la nature de ce qui circule.
+
+Seule cette fonction demande du réseau ; tout le reste continue sans. Hors
+réseau et sans clé donnent deux messages distincts, jamais un échec muet.
+
+Le stockage du navigateur reste écarté pour les données de santé. **Trois clés**
+y échappent, et aucune n'en porte : `educsp-theme`, `educsp-cle-activation`
+(hors de la base, qui part dans les sauvegardes) et `educsp-apercu-vu`.
+`test/theme.test.ts` refuse toute quatrième.
 
 Mise à jour : c'est ce dont tout le reste dépend, et cela s'est payé. Chaque
 construction produit une identité (`npm run generer:version` → `version.json`

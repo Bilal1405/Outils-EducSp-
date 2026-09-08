@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, globSync } from "node:fs";
 import path from "node:path";
 import { describe, it, expect } from "vitest";
 import { racineProjet } from "../src/chemins";
@@ -120,14 +120,47 @@ describe("choix retenu", () => {
   const theme = lire("public", "js", "theme.js");
 
   it("n'écrit dans le navigateur rien d'autre qu'une préférence d'apparence", () => {
-    // Le projet écarte le stockage local pour les données de santé. Ce module
-    // est la seule exception, et elle doit rester ce qu'elle est.
     const ecritures = [...theme.matchAll(/localStorage\.(setItem|getItem|removeItem)\(([^),]+)/g)];
     expect(ecritures.length).toBeGreaterThan(0);
     for (const [, , argument] of ecritures) {
       expect(argument.trim()).toBe("CLE");
     }
     expect(theme).toMatch(/const CLE = "educsp-theme"/);
+  });
+
+  it("est la seule chose que ce projet dépose sur le disque du poste, avec deux exceptions nommées", () => {
+    // Le stockage du navigateur est écarté par principe : il déposerait des
+    // données de santé sur un poste partagé. Trois clés y échappent, et aucune
+    // ne porte de donnée de santé — une apparence, une clé d'activation, et le
+    // fait d'avoir déjà lu l'aperçu. Toute quatrième doit être discutée, pas
+    // ajoutée en passant.
+    const AUTORISEES: Record<string, string> = {
+      "js/theme.js": "educsp-theme",
+      "js/local/assistance.js": "educsp-cle-activation",
+      "js/apercuEnvoi.js": "educsp-apercu-vu",
+    };
+
+    const modules = globSync("js/**/*.js", { cwd: path.join(racine, "public") });
+    const fautifs = modules
+      .map((chemin) => chemin.split(path.sep).join("/"))
+      .filter(
+        (chemin) =>
+          lire("public", ...chemin.split("/")).includes("localStorage") &&
+          !(chemin in AUTORISEES)
+      );
+    expect(fautifs, `stockage navigateur non déclaré : ${fautifs.join(", ")}`).toEqual([]);
+
+    for (const [chemin, cle] of Object.entries(AUTORISEES)) {
+      expect(lire("public", ...chemin.split("/")), chemin).toContain(`"${cle}"`);
+    }
+  });
+
+  it("ne met jamais la clé d'activation dans la base ni dans une sauvegarde", () => {
+    // La base part dans les sauvegardes, et un fichier de sauvegarde circule.
+    // C'est la raison pour laquelle cette clé vit ailleurs.
+    const assistance = lire("public", "js", "local", "assistance.js");
+    expect(assistance).not.toMatch(/INSERT|UPDATE|base\.query/);
+    expect(assistance).toMatch(/localStorage/);
   });
 
   it("survit à un stockage refusé", () => {

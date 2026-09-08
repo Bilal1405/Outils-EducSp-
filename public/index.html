@@ -41,6 +41,7 @@
   <link rel="modulepreload" href="/js/ui.js" />
   <link rel="modulepreload" href="/js/portail.js" />
   <link rel="modulepreload" href="/js/theme.js" />
+  <link rel="modulepreload" href="/js/apercuEnvoi.js" />
   <link rel="modulepreload" href="/js/chargement.js" />
   <link rel="modulepreload" href="/js/preparation.js" />
   <link rel="modulepreload" href="/js/pwa.js" />
@@ -577,13 +578,18 @@
       <div id="parcours-corps" class="parcours-corps"></div>
 
       <footer class="parcours-pied">
-        <button type="button" id="parcours-precedent" class="btn btn-secondaire">
+        <!-- Les libellés se retirent sur téléphone, où le pied doit tenir sur
+             une seule rangée : l'icône et le nom accessible suffisent. -->
+        <button type="button" id="parcours-precedent" class="btn btn-secondaire"
+                aria-label="Étape précédente">
           <svg class="ico"><use href="#ico-retour"/></svg>
-          Précédent
+          <span class="libelle-pied">Précédent</span>
         </button>
         <span id="parcours-statut" class="statut" role="status" aria-live="polite"></span>
-        <button type="button" id="parcours-enregistrer" class="btn btn-secondaire">
-          Enregistrer
+        <button type="button" id="parcours-enregistrer" class="btn btn-secondaire"
+                aria-label="Enregistrer l'étape">
+          <svg class="ico"><use href="#ico-check"/></svg>
+          <span class="libelle-pied">Enregistrer</span>
         </button>
         <button type="button" id="parcours-suivant" class="btn btn-primaire">
           Étape suivante
@@ -802,6 +808,37 @@
         Ouvrir le journal
       </button>
     </section>
+
+    <!-- Rédaction assistée : le seul geste de l'application qui sorte de
+         l'appareil, et le seul qui demande du réseau. Visible en version
+         téléphone uniquement — sur serveur, c'est la session qui autorise. -->
+    <section class="tiroir-section" data-section="assistance" hidden>
+      <h3>Rédaction assistée</h3>
+      <p class="aide">
+        Rédiger un bilan à partir d'un compte-rendu, et mettre au propre un
+        commentaire dicté, demandent un modèle de langage : il ne tient pas dans
+        un téléphone. Ces deux gestes — et eux seuls — passent par le serveur.
+        Vos dossiers, eux, ne quittent jamais l'appareil.
+      </p>
+      <label class="champ">
+        <span class="champ-label">Clé d'activation</span>
+        <input type="password" id="assistance-cle" autocomplete="off"
+               spellcheck="false" placeholder="Collez la clé fournie" />
+        <span class="aide">
+          Conservée sur cet appareil, en dehors de vos dossiers : elle ne part
+          donc pas dans les sauvegardes.
+        </span>
+      </label>
+      <div class="formulaire-pied">
+        <button type="button" id="assistance-enregistrer" class="btn btn-secondaire">
+          Enregistrer
+        </button>
+        <button type="button" id="assistance-apercu" class="btn btn-lien">
+          Voir ce qui sera envoyé
+        </button>
+      </div>
+      <p id="assistance-statut" class="statut" role="status" aria-live="polite"></p>
+    </section>
   </div>
 
   <footer class="tiroir-pied">
@@ -810,6 +847,35 @@
       Un problème sur ce poste — micro, affichage, lenteur ?
       <a href="/diagnostic.html" target="_blank" rel="noopener">Diagnostiquer</a>
     </p>
+  </footer>
+</dialog>
+
+<!-- Ce qui sort de l'appareil, donné à lire plutôt qu'affirmé.
+
+     Le masquage ne porte que sur les noms que la base connaît : un frère, un
+     collègue, une école n'en font pas partie. Montrer le texte exact vaut mieux
+     que promettre qu'il est propre. -->
+<dialog id="dlg-apercu" class="modale" aria-labelledby="dlg-apercu-titre">
+  <header class="modale-entete">
+    <h2 id="dlg-apercu-titre">Ce qui sera envoyé</h2>
+    <button type="button" class="btn-icone" data-fermer-modale aria-label="Fermer">
+      <svg class="ico"><use href="#ico-fermer"/></svg>
+    </button>
+  </header>
+  <div class="modale-corps">
+    <p class="aide">
+      Les noms connus de vos dossiers sont remplacés avant l'envoi. Relisez :
+      un prénom que l'application ne connaît pas — une fratrie, un collègue, un
+      établissement — n'est pas masqué.
+    </p>
+    <pre id="apercu-texte" class="apercu-texte"></pre>
+    <p id="apercu-jetons" class="aide"></p>
+  </div>
+  <footer class="modale-pied">
+    <button type="button" class="btn btn-secondaire" data-fermer-modale>Fermer</button>
+    <button type="button" id="apercu-poursuivre" class="btn btn-primaire" hidden>
+      Envoyer
+    </button>
   </footer>
 </dialog>
 

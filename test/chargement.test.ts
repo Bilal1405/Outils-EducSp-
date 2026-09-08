@@ -246,7 +246,7 @@ describe("modèle d'étapes", () => {
     reprendre();
     vi.advanceTimersByTime(400);
     expect(etatChargement().affiche).toBe(true);
-    expect(etatChargement().etapes.map((e) => e.id)).toEqual(["donnees"]);
+    expect(etatChargement().etapes.map((e: { id: string }) => e.id)).toEqual(["donnees"]);
   });
 
   it("distingue une étape remise à plus tard d'une étape qui traîne", async () => {

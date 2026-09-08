@@ -302,11 +302,12 @@ function rendreTableau(bloc, modele, contenu) {
           type: "radio",
           name: `${bloc.cle}__${ligne.cle}`,
           value: option,
-          "aria-label": `${ligne.libelle} : ${option}`,
         },
       });
       bouton.checked = valeurs[ligne.cle] === option;
       bouton.addEventListener("click", () => {
+        // Un second appui décoche : une absence d'observation n'est pas la
+        // même chose qu'un « Jamais ».
         if (valeurs[ligne.cle] === option) {
           bouton.checked = false;
           valeurs[ligne.cle] = "";
@@ -315,10 +316,21 @@ function rendreTableau(bloc, modele, contenu) {
         }
         marquerModifie(bloc.cle);
       });
-      return creer("td", {}, [bouton]);
+
+      // Le bouton est enveloppé d'un `<label>` qui porte le nom de l'option.
+      // Sur grand écran ce nom est masqué — l'en-tête de colonne le dit déjà —
+      // mais il rend toute la cellule cliquable, là où seul le rond de 17 px
+      // l'était. Sur téléphone, où le tableau devient une pile de cartes, c'est
+      // ce texte qui nomme le choix.
+      return creer("td", {}, [
+        creer("label", { classe: "cotation-option" }, [
+          bouton,
+          creer("span", { classe: "cotation-option-nom", texte: option }),
+        ]),
+      ]);
     });
 
-    return creer("tr", {}, [
+    return creer("tr", { attrs: { "data-item": ligne.libelle } }, [
       creer("th", { classe: "cotation-item", attrs: { scope: "row" }, texte: ligne.libelle }),
       ...cellules,
     ]);
@@ -405,16 +417,26 @@ function rendreListe(bloc, contenu) {
   ]);
 }
 
+/**
+ * Une cellule de `grille` ou de `repetable`.
+ *
+ * `onChange` porte tout : l'écriture de la valeur **et** le marquage de
+ * l'étape. Cette fonction appelait `marquerModifie(bloc.cle)` alors qu'elle ne
+ * reçoit pas de `bloc` — module ES, donc mode strict, donc `ReferenceError` à
+ * chaque frappe. La valeur était bien écrite en mémoire, mais l'étape ne se
+ * marquait jamais modifiée : ni enregistrement au bout de vingt secondes, ni
+ * enregistrement au changement d'étape. Les étapes « Comportements » et
+ * « Propositions » du bilan trimestriel n'ont qu'une grille pour tout contenu —
+ * rien d'autre ne pouvait marquer l'étape, et le travail s'y perdait en
+ * silence.
+ */
 function celluleSaisie(colonne, valeur, onChange) {
   let saisie;
   if (colonne.saisie === "choix" && colonne.options) {
     saisie = creer("select", {
       attrs: { "aria-label": colonne.libelle },
       sur: {
-        change: (evenement) => {
-          onChange(evenement.target.value);
-          marquerModifie(bloc.cle);
-        },
+        change: (evenement) => onChange(evenement.target.value),
       },
     });
     saisie.append(creer("option", { texte: "—", attrs: { value: "" } }));
@@ -425,10 +447,7 @@ function celluleSaisie(colonne, valeur, onChange) {
     saisie = creer("textarea", {
       attrs: { rows: 2, "aria-label": colonne.libelle },
       sur: {
-        input: (evenement) => {
-          onChange(evenement.target.value);
-          marquerModifie(bloc.cle);
-        },
+        input: (evenement) => onChange(evenement.target.value),
       },
     });
   }
@@ -446,9 +465,12 @@ function rendreGrille(bloc, contenu) {
     return creer("tr", {}, [
       creer("th", { classe: "grille-item", attrs: { scope: "row" }, texte: ligne.libelle }),
       ...bloc.colonnes.map((colonne) =>
-        creer("td", {}, [
+        // `data-libelle` sert au rendu en cartes sur téléphone, où l'en-tête
+        // de colonne disparaît : sans lui, on aurait des champs sans nom.
+        creer("td", { attrs: { "data-libelle": colonne.libelle } }, [
           celluleSaisie(colonne, cellules[colonne.cle], (valeur) => {
             cellules[colonne.cle] = valeur;
+            marquerModifie(bloc.cle);
           }),
         ])
       ),
@@ -502,9 +524,10 @@ function rendreRepetable(bloc, contenu) {
       corps.append(
         creer("tr", {}, [
           ...bloc.colonnes.map((colonne) =>
-            creer("td", {}, [
+            creer("td", { attrs: { "data-libelle": colonne.libelle } }, [
               celluleSaisie(colonne, entree[colonne.cle], (valeur) => {
                 entree[colonne.cle] = valeur;
+                marquerModifie(bloc.cle);
               }),
             ])
           ),

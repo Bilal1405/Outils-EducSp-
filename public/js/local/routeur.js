@@ -26,6 +26,9 @@
 import { ouvrirBase } from "./base.js";
 import { contenuVierge } from "./contenuVierge.js";
 import { SCHEMA_BILAN, MODELES_BILAN } from "./schema.js";
+import { jetonsPoses, preparerEnvoi, restituer } from "./masquage.js";
+import { ErreurAssistance, redigerBilan, reformuler } from "./assistance.js";
+import { validerEnvoi } from "../apercuEnvoi.js";
 
 /** Réponse d'une route locale, dans la forme qu'attend `api.js`. */
 function reponse(statut, donnees = null) {
@@ -352,10 +355,99 @@ const ROUTES = [
   {
     methode: "POST",
     motif: /^\/api\/patients\/([^/]+)\/bilans\/generate$/,
-    traiter: () =>
-      pasEncore(
-        "La rédaction assistée d'un bilan à partir d'un compte-rendu dicté"
-      ),
+    async traiter(base, [id], corps, moi) {
+      // Contrôles du serveur, réécrits comme le reste de ce fichier.
+      const texte = String(corps?.texte ?? "").trim();
+      if (!texte) return erreur(400, "Compte-rendu vide");
+      if (!corps?.periode_debut || !corps?.periode_fin) {
+        return erreur(400, "Requête invalide", { periode: ["Période requise"] });
+      }
+
+      const patient = await lirePatient(base, id, moi.etablissement_id);
+      if (!patient) return erreur(404, "Bénéficiaire introuvable");
+
+      // Le bilan antérieur donne au moteur la continuité du suivi. Même
+      // requête que `getDernierBilanValide` côté serveur.
+      const { rows: anciens } = await base.query(
+        `SELECT contenu FROM bilans
+          WHERE patient_id = $1 AND etablissement_id = $2
+            AND type_bilan = 'bilan' AND statut = 'validé'
+          ORDER BY periode_fin DESC, date_generation DESC LIMIT 1`,
+        [id, moi.etablissement_id]
+      );
+      const precedent = anciens[0] ? lireContenu(anciens[0].contenu) : null;
+
+      const connus = await contexteDeMasquage(base, patient, moi);
+
+      // Le compte-rendu **et** le contexte antérieur passent par le masquage :
+      // les observations d'un bilan validé portent autant de noms que le texte
+      // qu'on vient de dicter.
+      const { texte: texteMasque, table } = preparerEnvoi(texte, connus);
+      const precedentMasque = precedent
+        ? masquerPrecedent(precedent, connus)
+        : undefined;
+
+      // Avant le tout premier envoi sur cet appareil, l'éducateur voit le
+      // texte exact qui va partir. C'est la seule occasion de refuser en
+      // connaissance de cause ; ensuite, on ne l'interrompt plus.
+      if (!(await validerEnvoi(texteMasque, jetonsPoses(texteMasque, table)))) {
+        return erreur(499, "Envoi annulé. Votre compte-rendu est intact.");
+      }
+
+      let contenu;
+      try {
+        contenu = await redigerBilan(texteMasque, precedentMasque);
+      } catch (err) {
+        if (err instanceof ErreurAssistance) {
+          // 503 : la fonction existe mais n'est pas ouverte ici. 502 : elle a
+          // échoué. Dans les deux cas le message est écrit pour être lu.
+          return erreur(err.motif === "fermee" ? 503 : 502, err.message);
+        }
+        throw err;
+      }
+
+      contenu = restituer(contenu, table);
+      // L'en-tête est réécrit depuis la base, jamais gardé du modèle : il n'a
+      // reçu aucun nom, il n'a donc rien à en rendre. C'est aussi une surface
+      // d'invention en moins.
+      contenu.en_tete = enTeteDepuisLaBase(contenu.en_tete, patient, moi, connus, corps);
+
+      const { rows } = await base.query(
+        `INSERT INTO bilans
+           (patient_id, etablissement_id, auteur_id, type_bilan, periode_debut,
+            periode_fin, source, statut, contenu)
+         VALUES ($1,$2,$3,'bilan',$4,$5,$6,'brouillon',$7)
+         RETURNING id`,
+        [
+          id,
+          moi.etablissement_id,
+          moi.id,
+          corps.periode_debut,
+          corps.periode_fin,
+          corps?.source === "audio" ? "audio" : "texte",
+          JSON.stringify(contenu),
+        ]
+      );
+
+      journaliser(base, {
+        action: "bilan_genere",
+        utilisateurId: moi.id,
+        utilisateurLibelle: `${moi.prenom} ${moi.nom} <${moi.email}>`,
+        etablissementId: moi.etablissement_id,
+        cibleType: "bilan",
+        cibleId: rows[0].id,
+        cibleLibelle: `${patient.prenom} ${patient.nom}`,
+        details: { type_bilan: "bilan", source: corps?.source ?? "texte" },
+      });
+
+      return reponse(201, {
+        id: rows[0].id,
+        statut: "brouillon",
+        type_bilan: "bilan",
+        contenu,
+        quota: null,
+      });
+    },
   },
   {
     methode: "GET",
@@ -625,7 +717,26 @@ const ROUTES = [
   {
     methode: "POST",
     motif: /^\/api\/assistance\/reformulation$/,
-    traiter: () => pasEncore("La mise au propre d'un commentaire dicté"),
+    async traiter(base, _captures, corps, moi) {
+      const texte = String(corps?.texte ?? "");
+      if (!texte.trim()) return erreur(400, "Rien à reformuler");
+
+      // Un commentaire de parcours guidé porte les mêmes noms qu'un
+      // compte-rendu : même masquage, même chemin.
+      const connus = await contexteDeMasquage(base, null, moi);
+      const { texte: masque, table } = preparerEnvoi(texte, connus);
+
+      try {
+        return reponse(200, {
+          texte: restituer(await reformuler(masque, corps?.intitule), table),
+        });
+      } catch (err) {
+        if (err instanceof ErreurAssistance) {
+          return erreur(err.motif === "fermee" ? 503 : 502, err.message);
+        }
+        throw err;
+      }
+    },
   },
   {
     methode: "GET",
@@ -635,6 +746,94 @@ const ROUTES = [
 ];
 
 // --- Fragments partagés ------------------------------------------------------
+
+/** Le contenu d'un bilan, que PGlite rende un objet ou une chaîne JSON. */
+function lireContenu(brut) {
+  if (typeof brut === "string") {
+    try {
+      return JSON.parse(brut);
+    } catch {
+      return null;
+    }
+  }
+  return brut ?? null;
+}
+
+/**
+ * Ce que la base sait des noms, pour le masquage.
+ *
+ * Tous les bénéficiaires du dossier, pas seulement celui du bilan : un
+ * compte-rendu de séance collective en nomme plusieurs, et celui qu'on ne
+ * masquerait pas serait justement celui dont on ne parle pas.
+ */
+async function contexteDeMasquage(base, patient, moi) {
+  const { rows: tous } = await base.query(
+    "SELECT id, nom, prenom FROM patients WHERE etablissement_id = $1",
+    [moi.etablissement_id]
+  );
+  const { rows: etab } = await base.query(
+    "SELECT nom FROM etablissements WHERE id = $1",
+    [moi.etablissement_id]
+  );
+
+  return {
+    beneficiaire: patient ?? null,
+    autres: tous.filter((p) => !patient || p.id !== patient.id),
+    auteur: { prenom: moi.prenom, nom: moi.nom },
+    activite: etab[0]?.nom ?? "",
+  };
+}
+
+/** Masque les deux sections du bilan antérieur transmises au moteur. */
+function masquerPrecedent(precedent, connus) {
+  const sections = {
+    evaluation_objectifs_par_domaine:
+      precedent.evaluation_objectifs_par_domaine ?? [],
+    proposition_objectifs_periode_suivante:
+      precedent.proposition_objectifs_periode_suivante ?? [],
+  };
+  // `preparerEnvoi` masque une chaîne ; on passe par le JSON pour couvrir
+  // toute la structure d'un coup, jetons compris.
+  return JSON.parse(preparerEnvoi(JSON.stringify(sections), connus).texte);
+}
+
+/** Âge en années révolues, ou `0` si la date de naissance manque. */
+function ageDe(dateNaissance) {
+  if (!dateNaissance) return 0;
+  const naissance = new Date(dateNaissance);
+  if (Number.isNaN(naissance.getTime())) return 0;
+  const aujourdhui = new Date();
+  let annees = aujourdhui.getFullYear() - naissance.getFullYear();
+  const mois = aujourdhui.getMonth() - naissance.getMonth();
+  if (mois < 0 || (mois === 0 && aujourdhui.getDate() < naissance.getDate())) {
+    annees -= 1;
+  }
+  return annees >= 0 && annees < 130 ? annees : 0;
+}
+
+/**
+ * L'en-tête, repris de la base plutôt que du modèle.
+ *
+ * Le moteur n'a jamais reçu de nom : il n'a donc rien à en rendre, et ce qu'il
+ * aurait pu écrire ici serait inventé. Les champs que la base ne connaît pas —
+ * lieux, personnes présentes, horaires — restent ceux qu'il a déduits du
+ * compte-rendu, ou vides. Un champ vide reste visiblement vide.
+ */
+function enTeteDepuisLaBase(enTeteDuModele, patient, moi, connus, corps) {
+  const auteur = `${moi.prenom} ${moi.nom}`.trim();
+  return {
+    ...enTeteDuModele,
+    structure: connus.activite || enTeteDuModele?.structure || "",
+    periode_debut: corps.periode_debut,
+    periode_fin: corps.periode_fin,
+    beneficiaire_nom: `${patient.prenom} ${patient.nom}`.trim(),
+    beneficiaire_age: ageDe(patient.date_naissance),
+    beneficiaire_date_naissance: patient.date_naissance
+      ? String(patient.date_naissance).slice(0, 10)
+      : null,
+    professionnels_intervenants: [auteur],
+  };
+}
 
 async function lirePatient(base, id, etablissementId) {
   const { rows } = await base.query(

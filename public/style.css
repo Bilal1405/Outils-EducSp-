@@ -1642,8 +1642,13 @@ details[open] > summary {
   background: var(--fond);
 }
 
-.cotation tbody tr:hover {
-  background: var(--action-tenue);
+/* Le survol aide à suivre une ligne de gauche à droite avec une souris. Au
+   doigt il n'aide pas, et il reste collé après l'appui : la ligne touchée
+   garde son fond teinté comme si elle était sélectionnée. */
+@media (hover: hover) {
+  .cotation tbody tr:hover {
+    background: var(--action-tenue);
+  }
 }
 
 /* Spécificité alignée sur celle de `.cotation th` : sans le sélecteur de
@@ -1657,6 +1662,29 @@ details[open] > summary {
 
 .cotation-item {
   width: 46%;
+}
+
+/* Le rond seul faisait 17 px de cible, dans une cellule qui n'était pas
+   cliquable. Le libellé l'enveloppe désormais : sur grand écran il ne se voit
+   pas — l'en-tête de colonne nomme déjà le choix — mais toute la cellule
+   répond. */
+.cotation-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Aucune hauteur propre : la cellule garde exactement celle du rond. Un
+     `min-height` ici coûtait quarante-sept pixels sur une grille de huit
+     items, et faisait défiler une étape qui tenait dans l'écran. */
+  cursor: pointer;
+}
+
+.cotation-option-nom {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .cotation input[type="radio"] {
@@ -2106,6 +2134,23 @@ dialog::backdrop {
   border-radius: 0 0 var(--r-xl) var(--r-xl);
 }
 
+/* Le texte tel qu'il partira : à lire, donc lisible — chasse fixe pour que les
+   jetons se repèrent d'un coup d'œil, et une hauteur bornée pour que les
+   boutons de la modale restent atteignables sur un téléphone. */
+.apercu-texte {
+  margin: var(--e-3) 0;
+  padding: var(--e-3);
+  max-height: 40vh;
+  overflow-y: auto;
+  background: var(--fond-creux);
+  border-radius: var(--r-sm);
+  font-family: var(--police-mono);
+  font-size: var(--t-sm);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .toasts {
   position: fixed;
   right: 1rem;
@@ -2177,6 +2222,14 @@ dialog::backdrop {
     border-top-left-radius: 0;
   }
 
+  /* Le parcours pose sa propre réserve basse (`.zone-travail-pleine`), mais la
+     règle ci-dessus la recouvre : même spécificité, écrite plus loin. Il
+     perdait donc 48 px de hauteur utile, dans un conteneur `overflow: hidden`
+     où rien ne permet d'aller les rechercher. */
+  .zone-travail.zone-travail-pleine {
+    padding-bottom: 0.75rem;
+  }
+
   body {
     background: var(--canevas);
   }
@@ -2243,6 +2296,204 @@ dialog::backdrop {
   .saisie-barre .btn-primaire {
     margin-left: 0;
     width: 100%;
+  }
+
+  /* ---- Parcours guidé sur téléphone ------------------------------------
+
+     Les tableaux du parcours ont cinq colonnes. En 393 px il reste 327 px
+     utiles, et les seuls en-têtes de l'échelle de guidance — « Guidance
+     totale », « partielle », « légère », « Autonome » — en réclament environ
+     420. Le débordement ne se voyait pas : `.cotation-cadre` le transformait
+     en défilement horizontal *à l'intérieur* du tableau, sans colonne figée.
+     On ne pouvait donc pas voir en même temps l'item et la case à cocher —
+     précisément le geste demandé, sur quinze des dix-huit étapes du répit.
+
+     Chaque ligne devient une carte : l'item en entier, puis ses options en
+     boutons. Mêmes items, mêmes valeurs, mêmes données enregistrées — c'est
+     l'affichage qui change, pas la trame. La version bureau garde son tableau,
+     qui reste le bon outil quand la largeur existe. */
+
+  .cotation-cadre {
+    /* Il n'y a plus rien à faire défiler latéralement. */
+    overflow-x: visible;
+  }
+
+  .cotation,
+  .grille-tableau,
+  .cotation tbody,
+  .grille-tableau tbody,
+  .cotation tr,
+  .grille-tableau tr,
+  .cotation td,
+  .grille-tableau td,
+  .cotation th,
+  .grille-tableau th {
+    display: block;
+    width: auto;
+    text-align: left;
+  }
+
+  /* Les en-têtes de colonne disparaissent : chaque champ porte son nom. */
+  .cotation thead,
+  .grille-tableau thead {
+    display: none;
+  }
+
+  .cotation tr,
+  .grille-tableau tr {
+    padding: var(--e-3) 0;
+    border-bottom: 1px solid var(--trait);
+  }
+
+  .cotation tr:last-child,
+  .grille-tableau tr:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .cotation tbody tr:nth-child(even),
+  .grille-tableau tbody tr:nth-child(even) {
+    /* Les zébrures ne servent qu'à suivre une ligne de gauche à droite ; il
+       n'y a plus de ligne. */
+    background: transparent;
+  }
+
+  /* Le libellé de l'item, en entier, sur toute la largeur. */
+  .cotation th.cotation-item,
+  .grille-tableau th.grille-item {
+    padding: 0 0 var(--e-2);
+    border-bottom: none;
+    font-size: var(--t-base);
+    font-weight: var(--g-moyen);
+    line-height: 1.35;
+  }
+
+  .cotation-item {
+    width: auto;
+  }
+
+  /* Les valeurs de l'échelle : deux colonnes à 393 px, quatre dès qu'il y a
+     la place. Chaque bouton porte son nom et fait au moins 44 px. */
+  .cotation tbody tr {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+    gap: var(--e-2);
+  }
+
+  .cotation tbody tr > th.cotation-item {
+    grid-column: 1 / -1;
+  }
+
+  .cotation td {
+    padding: 0;
+    border-bottom: none;
+  }
+
+  .cotation-option {
+    justify-content: flex-start;
+    gap: var(--e-2);
+    min-height: 44px;
+    padding: 0 var(--e-3);
+    background: var(--fond-creux);
+    border: 1px solid transparent;
+    border-radius: var(--r-md);
+    font-size: var(--t-sm);
+    transition: background-color var(--transition), border-color var(--transition);
+  }
+
+  /* Le nom de l'option devient visible : c'est lui qui dit ce qu'on choisit,
+     l'en-tête de colonne n'étant plus là pour le faire. */
+  .cotation-option-nom {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+    line-height: 1.25;
+  }
+
+  .cotation-option:has(input:checked) {
+    background: var(--actif);
+    border-color: var(--action);
+    font-weight: var(--g-moyen);
+  }
+
+  /* --- Grilles et lignes ajoutées : un champ par ligne, avec son nom ------ */
+
+  .grille-tableau td {
+    padding: var(--e-2) 0 0;
+    border-bottom: none;
+  }
+
+  .grille-tableau td::before {
+    content: attr(data-libelle);
+    display: block;
+    margin-bottom: var(--e-1);
+    font-size: var(--t-sm);
+    font-weight: var(--g-moyen);
+    color: var(--texte-doux);
+  }
+
+  /* La colonne de suppression d'une ligne ajoutée n'a pas de nom : sans cela,
+     elle afficherait un libellé vide au-dessus de la corbeille. */
+  .grille-tableau td:not([data-libelle]) {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .grille-tableau td:not([data-libelle])::before {
+    content: none;
+  }
+
+  /* La règle générale des tableaux (spécificité 0-1-1) écrasait l'anti-zoom du
+     bloc tactile (0-0-1) : au focus, iOS et Android zoomaient la page et n'en
+     revenaient jamais tout à fait. */
+  .grille-tableau textarea,
+  .grille-tableau select,
+  .grille-tableau input {
+    font-size: max(16px, var(--t-base));
+    padding: 0.5rem 0.7rem;
+  }
+
+  /* --- Ce qui entoure l'étape ------------------------------------------- */
+
+  /* Le nom du modèle et celui du bénéficiaire sont déjà dans la barre du haut
+     et sur le bouton de retour. Les répéter coûte quatre-vingts pixels de
+     hauteur sur un écran qui en manque. */
+  #parcours-titre,
+  #parcours-beneficiaire {
+    display: none;
+  }
+
+  /* Le pied tenait sur deux à trois rangs de 44 px. Sur une seule rangée : on
+     revient en arrière par une flèche, on enregistre par une icône, et
+     « Étape suivante » prend tout ce qui reste — c'est le geste principal. */
+  .parcours-pied {
+    flex-wrap: nowrap;
+    gap: var(--e-2);
+  }
+
+  .parcours-pied .statut {
+    display: none;
+  }
+
+  #parcours-precedent,
+  #parcours-enregistrer {
+    flex: none;
+    padding: 0;
+    width: 44px;
+    min-width: 44px;
+  }
+
+  #parcours-precedent .libelle-pied,
+  #parcours-enregistrer .libelle-pied {
+    display: none;
+  }
+
+  #parcours-suivant,
+  #parcours-terminer {
+    flex: 1;
   }
 
   .toasts {
